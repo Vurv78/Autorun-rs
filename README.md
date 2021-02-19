@@ -15,6 +15,11 @@ The file structure starts at C:\Users\User\sautorun-rs\.
   * Not supported out of the box, could add it yourself relatively easily
 * Separate AllocConsole that allows for running commands (See the help command)
 
+### Usage
+Get an injector (Make sure it's compatible to inject 32/64 bit code depending on your use).  
+Use one of the build_win batchfiles to build the output dll, then inject that into garrysmod at the main menu.  
+See the Notes for more info.
+
 ### TODOs
 * Automating JoinServer hook
 * Making a lua script in sautorun run before autorun out of the box.

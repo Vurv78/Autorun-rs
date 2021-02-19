@@ -1,5 +1,6 @@
 # Autorun-rs
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
+![CI](https://github.com/Vurv78/Autorun-rs/workflows/Build/badge.svg)
 
 Garrysmod Lua Dumper / Runner, written in Rust.
 

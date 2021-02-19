@@ -1,0 +1,23 @@
+[package]
+name = "Autorun"
+version = "0.1.0"
+authors = ["Vurv78 <Vurv78@users.noreply.github.com>"]
+edition = "2018"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[lib]
+crate-type = ["dylib"]
+
+[dependencies]
+# detour-rs static detours needs nightly, which sucks since nightly breaks rls, I don't wanna bother trying to search up how to fix that.
+detour = { version = "0.7.1", default-features = false }
+
+libc = "0.2.85" # FFI Types
+winapi = {version = "0.3.9", features = ["consoleapi"]}
+
+# DLL Loading
+dlopen = "0.1.8"
+dlopen_derive = "0.1.4"
+
+dirs = "3.0.1" # To get your home directory.

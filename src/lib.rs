@@ -18,6 +18,8 @@ use detour::GenericDetour;
 #[macro_use] extern crate dlopen_derive;
 use dlopen::wrapper::{Container, WrapperApi};
 
+use lazy_static::lazy_static; // lazy_static! macro
+
 // Types
 use std::ffi::{CStr, CString};
 use libc::c_void as CVoid;
@@ -31,6 +33,8 @@ type LuaCFunction = extern "C" fn(LuaState) -> CInt;
 
 static mut JOIN_SERVER: GlobalDetour<LuaCFunction> = None;
 static mut LUAL_LOADBUFFERX: GlobalDetour< extern fn(LuaState, CharBuf, SizeT, CharBuf, CharBuf) -> CInt > = None;
+static mut CREATEINTERFACE: GlobalDetour< extern fn(CharBuf, CInt) -> *mut CVoid > = None;
+
 static mut CURRENT_LUA_STATE: Option<LuaState> = None;
 static mut CURRENT_SERVER_IP: Option<&'static str> = None;
 
@@ -38,7 +42,6 @@ static mut CURRENT_SERVER_IP: Option<&'static str> = None;
 // Which rust finds it by looking at the program the dll is attached to (Gmod.)
 #[derive(WrapperApi)]
 struct LuaShared {
-    // Fetch the function from the dll that lib.rs will output
     luaL_loadbufferx: extern fn(state: LuaState, code: CharBuf, size: SizeT, id: CharBuf, mode: CharBuf) -> CInt,
     luaL_loadbuffer: extern fn(state: LuaState, code: CharBuf, size: SizeT, id: CharBuf) -> CInt,
     luaL_loadstring: extern fn(state: LuaState, code: CharBuf) -> CInt,
@@ -46,12 +49,42 @@ struct LuaShared {
     lua_tolstring: extern fn(state: LuaState, ind: CInt, size: SizeT) -> CharBuf,
     lua_settop: extern fn(state: LuaState, ind: CInt),
     lua_getfield: extern fn(state: LuaState, idx: CInt, key: CharBuf) -> CInt,
-    lua_tocfunction: extern fn(state: LuaState, idx: CInt) -> LuaCFunction
+    lua_tocfunction: extern fn(state: LuaState, idx: CInt) -> LuaCFunction,
+    CreateInterface: extern fn(name: CharBuf, ret_code: CInt) -> *mut CVoid
+}
+
+/*#[derive(WrapperApi)]
+struct ILuaInterface {
+    GetState: extern fn() -> LuaState,
+}
+
+#[derive(WrapperApi)]
+struct ILuaShared {
+    GetLuaInterface: extern fn(realm: u8) -> *mut ILuaInterface
+}*/
+
+lazy_static! {
+    static ref GMOD_PATH: PathBuf = std::env::current_dir().unwrap(); // D:\SteamLibrary\steamapps\common\GarrysMod for example.
+    static ref BIN_PATH: PathBuf = {
+        let bin = Path::new(&*GMOD_PATH).join("bin");
+        if cfg!( target_arch = "x86_64" ) {
+            return bin.join("win64");
+        }else{
+            return bin;
+        }
+    };
+    static ref LUA_SHARED_PATH: PathBuf = Path::new( &*BIN_PATH ).join("lua_shared.dll");
+
+    static ref LUA_SHARED_LIB: Container<LuaShared> = {
+        let dll_path = &*LUA_SHARED_PATH;
+        match unsafe {Container::<LuaShared>::load(dll_path)} {
+            Ok(lib) => lib,
+            Err(why) => panic!("Path DLL tried to load: {}, Error Reason: {}. Report this on github.", dll_path.display(), why)
+        }
+    };
 }
 
 // #define lua_getglobal(L,s)      lua_getfield(L, LUA_GLOBALSINDEX, (s))
-
-
 
 // lua_pop implementation like the C macro.
 // TODO: Make this a rust macro, alongside lua_getglobal.
@@ -111,7 +144,14 @@ fn get_autorun_file(garry_dir: &str, server_ip: &str) -> Option<File> {
     }
 }
 
-static mut LUA_SHARED: Option< Container<LuaShared> > = None;
+extern fn h_createinterface(name: CharBuf, ret_code: CInt) -> *mut CVoid {
+    if let Some(hook) = unsafe{ &CREATEINTERFACE } {
+        println!("Hooked createinterface. {}, {}", rust_str(name), ret_code);
+        return hook.call( name, ret_code );
+    }
+    println!("Failed to get CREATEINTERFACE hook");
+    unreachable!()
+}
 
 extern fn h_loadbufferx(state: LuaState, code: CharBuf, size: SizeT, identifier: CharBuf, mode: CharBuf) -> CInt {
     let raw_path = &rust_str(identifier)[1 ..];
@@ -133,13 +173,12 @@ extern fn h_loadbufferx(state: LuaState, code: CharBuf, size: SizeT, identifier:
 
 extern fn h_join_server(state: LuaState) -> CInt {
     unsafe {
-        if let Some(lua_shared) = &LUA_SHARED {
-            let ip = rust_str(lua_shared.lua_tolstring(state, 1, 0));
-            println!("Joining Server with IP {}!", ip);
-            CURRENT_SERVER_IP = Some(ip);
-            if let Some(hook) = &JOIN_SERVER {
-                return hook.call(state);
-            }
+        let lua_shared = &*LUA_SHARED_LIB;
+        let ip = rust_str(lua_shared.lua_tolstring(state, 1, 0));
+        println!("Joining Server with IP {}!", ip);
+        CURRENT_SERVER_IP = Some(ip);
+        if let Some(hook) = &JOIN_SERVER {
+            return hook.call(state);
         }
     }
     println!("Failed to get JOIN_SERVER hook.");
@@ -176,25 +215,33 @@ fn get_lua_error<'a>(err: i32) -> Option<&'a str> {
     }
 }
 
+// Gets an interface from a module. Currently only does lua_shared.dll.
+/*fn get_interface<T>( name: &str ) -> Option<T> {
+    if let Some(ls) = unsafe { &LUA_SHARED } {
+        let interface_ptr = ls.CreateInterface( c_string(name).as_ptr(), 0);
+        return Some( unsafe { std::mem::transmute::<*mut CVoid, T>(interface_ptr) } );
+    }
+    None
+}*/
+
 // When this DLL is attached
 fn detour_funcs() -> Result<(), Box<dyn std::error::Error>> {
-    let gmod_path = std::env::current_dir()?; // D:\SteamLibrary\steamapps\common\GarrysMod for example.
-    let bin_path = Path::new(&gmod_path)
-        .join("bin")
-        .join("win64");
-
-    let lua_shared_path = Path::new( &bin_path )
-        .join("lua_shared.dll");
-
     unsafe {
-        let lua_shared = Container::<LuaShared>::load(lua_shared_path)?;
+        let lua_shared = &*LUA_SHARED_LIB;
         // Setting the static vars
 
-        let tour = GenericDetour::new( lua_shared.luaL_loadbufferx, h_loadbufferx )?;
-        tour.enable()?;
-        LUAL_LOADBUFFERX = Some(tour);
+        let loadbufxh = GenericDetour::new( lua_shared.luaL_loadbufferx, h_loadbufferx )?;
+        loadbufxh.enable()?;
+        LUAL_LOADBUFFERX = Some(loadbufxh);
 
-        LUA_SHARED = Some(lua_shared);
+        let createinterfaceh = GenericDetour::new( lua_shared.CreateInterface, h_createinterface )?;
+        createinterfaceh.enable()?;
+        CREATEINTERFACE = Some(createinterfaceh);
+
+        //let iluashared = createinterfaceh.call( c_string("LUASHARED003").as_ptr(), 0 );
+        //let interface = iluashared.GetLuaInterface();
+        //let iluainterface = (&(*iluashared).GetLuaInterface)(2);
+        //let state = (&(*iluainterface).GetState)();
     };
     Ok(())
 }
@@ -203,16 +250,15 @@ fn detour_funcs() -> Result<(), Box<dyn std::error::Error>> {
 fn runLua(code: &str) {
     if let Some(state) = unsafe{ CURRENT_LUA_STATE } {
         if let Some(loadbufx_hook) = unsafe { &LUAL_LOADBUFFERX } {
-            if let Some(ls) = unsafe { &LUA_SHARED } {
-                loadbufx_hook.call( state, c_string(code).as_ptr(), std::mem::size_of_val(code), c_string("@RunString(Ex)").as_ptr(), c_string("bt").as_ptr() );
-                let result = ls.lua_pcall( state, 0, -1, 0 );
-                if let Some(err_type) = get_lua_error(result)  {
-                    // TODO: Running while true do end causes a stack leak here.
-                    println!("{}: {}", err_type, rust_str(ls.lua_tolstring(state, -1, 0)) );
-                    lua_pop(ls, state, 1);
-                } else {
-                    println!("Code ran successfully.");
-                }
+            let lua_shared = &*LUA_SHARED_LIB;
+            loadbufx_hook.call( state, c_string(code).as_ptr(), std::mem::size_of_val(code), c_string("@RunString").as_ptr(), c_string("bt").as_ptr() );
+            let result = lua_shared.lua_pcall( state, 0, -1, 0 );
+            if let Some(err_type) = get_lua_error(result)  {
+                // TODO: Running while true do end causes a stack leak here.
+                println!("{}: {}", err_type, rust_str(lua_shared.lua_tolstring(state, -1, 0)) );
+                lua_pop(lua_shared, state, 1);
+            } else {
+                println!("Code ran successfully.");
             }
         }
     }
@@ -240,22 +286,21 @@ fn handle_input() {
             } else if buffer.starts_with("init_file_steal") {
                 // Run this in the menu state. Hopefully will automate this with CreateInterface or something.
                 if let Some(state) = unsafe{ CURRENT_LUA_STATE } {
-                    if let Some(ls) = unsafe { &LUA_SHARED } {
-                        ls.lua_getfield(state, -10002, c_string("JoinServer").as_ptr() ); // lua_getglobal
-                        unsafe {
-                            match GenericDetour::new( ls.lua_tocfunction(state, -1), h_join_server ) {
-                                Ok(hook) => {
-                                    hook.enable().expect("Couldn't enable JoinServer hook");
-                                    JOIN_SERVER = Some(hook);
-                                    println!("Successfully hooked JoinServer.");
-                                }
-                                Err(why) => {
-                                    println!("Couldn't hook JoinServer. {}", why);
-                                }
+                    let ls = &*LUA_SHARED_LIB;
+                    ls.lua_getfield(state, -10002, c_string("JoinServer").as_ptr() ); // lua_getglobal
+                    unsafe {
+                        match GenericDetour::new( ls.lua_tocfunction(state, -1), h_join_server ) {
+                            Ok(hook) => {
+                                hook.enable().expect("Couldn't enable JoinServer hook");
+                                JOIN_SERVER = Some(hook);
+                                println!("Successfully hooked JoinServer.");
+                            }
+                            Err(why) => {
+                                println!("Couldn't hook JoinServer. {}", why);
                             }
                         }
-                        lua_pop(ls, state, 1);
                     }
+                    lua_pop(ls, state, 1);
                 }else {
                     println!("Run this command when you've caused menu state lua to run, hover over a ui button or something!");
                 }

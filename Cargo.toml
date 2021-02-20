@@ -21,3 +21,5 @@ dlopen = "0.1.8"
 dlopen_derive = "0.1.4"
 
 dirs = "3.0.1" # To get your home directory.
+
+lazy_static = "1.4.0"

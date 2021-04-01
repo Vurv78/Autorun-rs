@@ -6,9 +6,19 @@ env:
   CARGO_TERM_COLOR: always
 
 jobs:
-  build:
+  buildx64:
     runs-on: windows-latest
     steps:
     - uses: actions/checkout@v2
     - name: Build
-      run: cargo build --verbose
+      run: cargo build --release --verbose
+  
+  # In the future make this run on an x86 machine https://github.com/actions/runner/issues/423
+  buildx86:
+    runs-on: windows-latest
+    steps:
+    - uses: actions/checkout@v2
+    - name: Build
+      run: |
+        rustup target add i686-pc-windows-msvc
+        cargo build --release --target=i686-pc-windows-msvc

@@ -2,6 +2,7 @@
 [![Release Shield](https://img.shields.io/github/v/release/Vurv78/Autorun-rs)](https://github.com/Vurv78/Autorun-rs/releases/latest)
 [![License](https://img.shields.io/github/license/Vurv78/Autorun-rs?color=red)](https://opensource.org/licenses/Apache-2.0)
 ![CI](https://github.com/Vurv78/Autorun-rs/workflows/Build/badge.svg)
+[![github/Vurv78](https://discordapp.com/api/guilds/824727565948157963/widget.png)](https://discord.gg/epJFC6cNsw)
 
 Garrysmod Lua Dumper / Runner, written in Rust.
 

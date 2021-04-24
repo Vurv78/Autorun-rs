@@ -62,7 +62,40 @@ lazy_static! {
             return bin;
         }
     };
-    static ref LUA_SHARED_PATH: PathBuf = Path::new( &*BIN_PATH ).join("lua_shared.dll");
+
+    static ref LUA_SHARED_PATH: PathBuf = {
+        let game_bin = Path::new(&*GMOD_PATH)
+            .join("bin");
+
+        if cfg!( target_arch = "x86_64" ) {
+            // x64 Platform. srcds is always 32 bit so we don't have to try and check that here.
+            let full = game_bin
+                .join("win64")
+                .join("lua_shared.dll");
+
+            return match full.exists() {
+                true => full,
+                false => panic!("Couldn't find lua_shared in GarrysMod/bin/win64/lua_shared.dll, Make sure it's there or switch to 32 bit!")
+            }
+        } else {
+            // x86 Platform
+            let game_full = game_bin.join("lua_shared.dll");
+            if game_full.exists() {
+                return game_full
+            } else {
+                // Sometimes GarrysMod/garrysmod/bin contains lua_shared rather than just GarrysMod/bin.
+                // I think it only happens on srcds hosted servers. So this is needed for binary modules on the sv side.
+                let srcds_full = Path::new(&*GMOD_PATH)
+                    .join("garrysmod")
+                    .join("bin")
+                    .join("lua_shared.dll");
+                return match srcds_full.exists() {
+                    true => srcds_full,
+                    false => panic!("Couldn't find lua_shared.dll in either GarrysMod/bin/lua_shared.dll or GarrysMod/garrysmod/bin/lua_shared.dll, This shouldn't happen? Report on gh with your lua_shared.dll path.")
+                }
+            }
+        }
+    };
 
     static ref LUA_SHARED_LIB: Container<LuaShared> = {
         let dll_path = &*LUA_SHARED_PATH;

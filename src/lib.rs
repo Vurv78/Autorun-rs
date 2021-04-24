@@ -54,14 +54,6 @@ struct LuaShared {
 
 lazy_static! {
     static ref GMOD_PATH: PathBuf = std::env::current_dir().unwrap(); // D:\SteamLibrary\steamapps\common\GarrysMod for example.
-    static ref BIN_PATH: PathBuf = {
-        let bin = Path::new(&*GMOD_PATH).join("bin");
-        if cfg!( target_arch = "x86_64" ) {
-            return bin.join("win64");
-        }else{
-            return bin;
-        }
-    };
 
     static ref LUA_SHARED_PATH: PathBuf = {
         let game_bin = Path::new(&*GMOD_PATH)

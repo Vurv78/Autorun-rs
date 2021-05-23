@@ -3,3 +3,4 @@ Cargo.lock
 *.exe
 auto.bat
 *.dll
+.vscode

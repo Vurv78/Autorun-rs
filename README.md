@@ -45,7 +45,8 @@ log: function # Prints to the external console.
 ```
 
 ### Examples
-autorun.lua
+hook.lua
+Runs before every single script that is run by garrysmod so make sure this is a lightweight script.
 ```lua
 local script = sautorun.CODE
 if script:find("while true do end") then
@@ -53,7 +54,8 @@ if script:find("while true do end") then
   return true -- Exit from here & don't run the script
 end
 ```
-hook.lua
+autorun.lua
+Runs before the garrysmod autorun script runs.
 ```lua
 sautorun.log( "Connected to server " .. sautorun.IP )
 ```

@@ -35,8 +35,6 @@ pub static AUTORUN_SCRIPT_PATH: Lazy<PathBuf> = Lazy::new(|| (*SAUTORUN_DIR).joi
 // Basically ROC, whenever a lua script is ran, run this and pass the code. If it returns true or nil, run the code, else don't
 pub static HOOK_SCRIPT_PATH: Lazy<PathBuf> = Lazy::new(|| (*SAUTORUN_DIR).join("hook.lua") );
 
-pub static ENV_NAME: &'static str = "sautorun"; // Name of the env table / index in _G
-
 // ---------------- Configs ---------------- //
 
 // No more static mut! 🥳

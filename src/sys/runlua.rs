@@ -55,7 +55,7 @@ pub fn runLua(code: &str) -> Result<(), String> {
 
 extern fn log(state: LuaState) -> i32 {
 	let s = lua_tostring(state, 1);
-	println!( "LUA LOG: {}", rstring!(s) );
+	println!( "{}", rstring!(s) );
 	0
 }
 

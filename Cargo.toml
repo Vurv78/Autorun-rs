@@ -1,6 +1,6 @@
 [package]
 name = "Autorun"
-version = "0.2.0"
+version = "0.3.0"
 authors = ["Vurv78 <Vurv78@users.noreply.github.com>"]
 edition = "2018"
 

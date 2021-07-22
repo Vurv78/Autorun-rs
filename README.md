@@ -22,6 +22,8 @@ Autorun features scripthook, which means we'll run your script before any other 
 Also note that if you are running in ``autorun.lua`` You will not have access to functions created by glua, like ``http.Fetch`` & ``file.Write``.  
 Use the C equivalents (``HTTP`` and ``file.Open``)
 
+See an example project using the scripthook [here](https://github.com/Vurv78/Safety).
+
 ### File Structure
 
 ```ruby

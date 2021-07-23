@@ -1,6 +1,6 @@
 [package]
-name = "Autorun"
-version = "0.3.0"
+name = "autorun"
+version = "0.4.0"
 authors = ["Vurv78 <Vurv78@users.noreply.github.com>"]
 edition = "2018"
 
@@ -18,9 +18,9 @@ rglua = { git = "https://github.com/Vurv78/rglua" }
 detour = { version = "0.8.0", default-features = false }
 
 # Global Mutable Variables
-once_cell = "1.7.2"
+once_cell = "1.8.0"
 atomic = "0.5.0"
 
 # Misc
-dirs = "3.0.1" # To get your home directory.
-anyhow = "1.0.41"
+dirs = "3.0.2" # To get your home directory.
+anyhow = "1.0.42"

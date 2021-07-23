@@ -11,7 +11,8 @@ use rglua::{
 	types::{
 		CharBuf,
 		LuaState
-	}
+	},
+	rstring
 };
 
 // Runs lua code through loadbufferx. Returns whether it successfully ran.

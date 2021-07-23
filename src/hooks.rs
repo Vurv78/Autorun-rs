@@ -12,7 +12,8 @@ use crate::sys::{
 
 use rglua::{
 	lua_shared::*,
-	types::*
+	types::*,
+	rstring
 };
 
 pub extern fn loadbufferx(state: LuaState, code: CharBuf, size: SizeT, identifier: CharBuf, mode: CharBuf) -> CInt {

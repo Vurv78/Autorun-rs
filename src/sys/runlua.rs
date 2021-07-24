@@ -56,10 +56,7 @@ pub fn runLua(code: &str) -> Result<(), String> {
 
 extern fn log(state: LuaState) -> i32 {
 	let s = luaL_checklstring(state, 1, 0);
-	let mut level = simplelog::Level::Info as i32;
-	if lua_type(state, 2) == rglua::globals::Lua::Type::Number as i32 {
-		level = lua_tointeger(state, 2) as i32;
-	}
+	let level = luaL_optinteger(state, 2, simplelog::Level::Info as isize);
 
 	let str = rstring!(s);
 	match level {

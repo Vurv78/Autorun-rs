@@ -1,4 +1,4 @@
-# ``Autorun-rs`` [![Release Shield](https://img.shields.io/github/v/release/Vurv78/Autorun-rs)](https://github.com/Vurv78/Autorun-rs/releases/latest) [![License](https://img.shields.io/github/license/Vurv78/Autorun-rs?color=red)](https://opensource.org/licenses/Apache-2.0) ![CI](https://github.com/Vurv78/Autorun-rs/workflows/Build/badge.svg) [![github/Vurv78](https://img.shields.io/discord/824727565948157963?color=7289DA&label=chat&logo=discord)](https://discord.gg/epJFC6cNsw)
+# ``Autorun-rs`` [![Release Shield](https://img.shields.io/github/v/release/Vurv78/Autorun-rs)](https://github.com/Vurv78/Autorun-rs/releases/latest) [![License](https://img.shields.io/github/license/Vurv78/Autorun-rs?color=red)](https://opensource.org/licenses/Apache-2.0) ![CI](https://github.com/Vurv78/Autorun-rs/workflows/Build/badge.svg) [![github/Vurv78](https://img.shields.io/discord/824727565948157963?label=Discord&logo=discord&logoColor=ffffff&labelColor=7289DA&color=2c2f33)](https://discord.gg/epJFC6cNsw)
 
 Garrysmod Lua Dumper & Runner, written in Rust.  
 
@@ -45,7 +45,7 @@ Here are the fields for the ``sautorun`` table that gets passed in scripthook.
 | CODE     | string           | The contents of the script                                              |
 | IP       | string           | IP of the server you are currently connected to                         |
 | STARTUP  | boolean          | Whether the script is running from ``autorun.lua`` (true) or false      |
-| log      | function<string> | A function that prints to the external Autorun allocated console        |
+| log      | function<string, uint?> | A function that logs to your autorun console. Second param is level ascending with urgency, 5 being error, 4 warning, 3, info, 2 debug, 1 trace. Default 3        |
 
 ### Examples
 __hook.lua__  
@@ -53,12 +53,13 @@ This file runs before every single lua script run on your client from addons and
 ```lua
 local script = sautorun.CODE
 if script:find("while true do end") then
-  sautorun.log("Found an evil script!")
-  return true -- Exit from here & don't run the script
+	sautorun.log("Found an evil script!")
+	return true -- Exit from here & don't run the script
 end
 ```
 __autorun.lua__  
 This will be the first lua script to run on your client when you join a server, use this to make detours and whatnot.
 ```lua
-sautorun.log( "Connected to server " .. sautorun.IP )
+local ERROR, WARN, INFO, DEBUG, TRACE = 5, 4, 3, 2, 1
+sautorun.log( "Connected to server " .. sautorun.IP, DEBUG )
 ```

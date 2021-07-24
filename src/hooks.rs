@@ -33,7 +33,7 @@ pub extern fn loadbufferx(state: LuaState, code: CharBuf, size: SizeT, identifie
 				Ok(hook)
 			}
 			Err(why) => {
-				eprintln!("Couldn't hook JoinServer. {}", why);
+				error!("Couldn't hook JoinServer. {}", why);
 				return Err(());
 			}
 		};
@@ -57,11 +57,11 @@ pub extern fn loadbufferx(state: LuaState, code: CharBuf, size: SizeT, identifie
 			if let Ok(script) = fs::read_to_string(&*AUTORUN_SCRIPT_PATH) {
 				// Try to run here
 				if let Err(why) = runLuaEnv(&script, identifier, code, server_ip, true) {
-					eprintln!("{}", why);
+					error!("{}", why);
 				}
 				autoran = true;
 			} else {
-				eprintln!( "Couldn't read your autorun script file at {}/{}", SAUTORUN_DIR.display(), AUTORUN_SCRIPT_PATH.display() );
+				error!( "Couldn't read your autorun script file at {}/{}", SAUTORUN_DIR.display(), AUTORUN_SCRIPT_PATH.display() );
 			}
 		}
 	}
@@ -77,7 +77,7 @@ pub extern fn loadbufferx(state: LuaState, code: CharBuf, size: SizeT, identifie
 					}
 				}
 				Err(why) => {
-					eprintln!("{}", why);
+					error!("{}", why);
 				}
 			}
 		}
@@ -101,7 +101,7 @@ pub extern fn loadbufferx(state: LuaState, code: CharBuf, size: SizeT, identifie
 // If not, then hook it.
 pub extern fn joinserver(state: LuaState) -> CInt {
 	let ip = rstring!( lua_tolstring(state, 1, 0) );
-	println!("Joining Server with IP {}!", ip);
+	info!("Joining Server with IP {}!", ip);
 
 	CURRENT_SERVER_IP.store(ip, Ordering::Relaxed); // Set the IP so we know where to write files in loadbufferx.
 	HAS_AUTORAN.store(false, Ordering::Relaxed);
@@ -109,7 +109,7 @@ pub extern fn joinserver(state: LuaState) -> CInt {
 		// We could retrieve the hook from our global variables
 		hook.call(state);
 	} else {
-		eprintln!("Failed to get JOIN_SERVER hook from global state");
+		error!("Failed to get JOIN_SERVER hook from global state");
 	}
 	0
 }

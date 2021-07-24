@@ -33,23 +33,20 @@ pub fn getAutorunHandle(garry_dir: &str, server_ip: &str) -> Option<File> {
 	let file_loc = &*SAUTORUN_DIR
 		.join("lua_dumps")
 		.join(server_ip.replace(":","."))
-		.join(&lua_run_path);
+		.join(&garry_dir.to_owned().replace(":", "."));
 
 	match file_loc.parent() {
 		Some(dirs) => {
 			match fs::create_dir_all(dirs) {
 				Err(why) => {
-					eprintln!("Couldn't create sautorun-rs directories. [{}]", why);
-					dbg!(dirs);
+					error!("Couldn't create sautorun-rs dirs with path [{}]. [{}]", dirs.display(), why);
 					None
 				}
-				Ok(_) => {
-					match File::create(file_loc) {
-						Ok(file) => Some(file),
-						Err(why) => {
-							eprintln!("Couldn't create sautorun-rs file. [{}]", why);
-							None
-						}
+				Ok(_) => match File::create(file_loc) {
+					Ok(file) => Some(file),
+					Err(why) => {
+						error!("Couldn't create sautorun-rs file with path [{}]. [{}]", why, file_loc.display());
+						None
 					}
 				}
 			}

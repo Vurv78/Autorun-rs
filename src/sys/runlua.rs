@@ -55,8 +55,23 @@ pub fn runLua(code: &str) -> Result<(), String> {
 }
 
 extern fn log(state: LuaState) -> i32 {
-	let s = lua_tostring(state, 1);
-	println!( "{}", rstring!(s) );
+	let s = luaL_checklstring(state, 1, 0);
+	let mut level = simplelog::Level::Info as i32;
+	if lua_type(state, 2) == rglua::globals::Lua::Type::Number as i32 {
+		level = lua_tointeger(state, 2) as i32;
+	}
+
+	let str = rstring!(s);
+	match level {
+		1 => error!("{}", str),
+		2 => warn!("{}", str),
+		3 => info!("{}", str),
+		4 => debug!("{}", str),
+		5 => trace!("{}", str),
+		_ => {
+			luaL_argerror( state, 2, b"Invalid log level (Should be 1-5, 1 being Error, 5 being Trace)\0".as_ptr() as *const i8 );
+		}
+	}
 	0
 }
 

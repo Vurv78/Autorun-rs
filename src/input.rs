@@ -11,21 +11,17 @@ pub(crate) fn try_process_input() -> anyhow::Result<()> {
 	debug!("Command used: [{}], rest [{}]", word, rest);
 
 	match word {
-		"lua_run" => {
-			match runLua(rest) {
-				Ok(_) => println!("Ran successfully!"),
-				Err(why) => error!("{}", why)
-			}
+		"lua_run" => match runLua(rest) {
+			Ok(_) => info!("Ran code with len {} successfully!", rest.len()),
+			Err(why) => error!("{}", why)
 		},
 		"lua_openscript" => {
 			let path = rest.trim_end();
 			match std::fs::read_to_string( Path::new(path) ) {
 				Err(why) => error!("Errored on lua_openscript. [{}]", why),
-				Ok(contents) => {
-					match runLua( &contents ) {
-						Ok(_) => info!("Ran file {} successfully!", path),
-						Err(why) => error!("Errored when running file at path '{}'. [{}]", path, why)
-					}
+				Ok(contents) => match runLua( &contents ) {
+					Ok(_) => info!("Ran file {} successfully!", path),
+					Err(why) => error!("Errored when running file '{}'. [{}]", path, why)
 				}
 			}
 		},

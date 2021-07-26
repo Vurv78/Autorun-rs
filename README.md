@@ -45,7 +45,7 @@ Here are the fields for the ``sautorun`` table that gets passed in scripthook.
 | CODE     | string           | The contents of the script                                              |
 | IP       | string           | IP of the server you are currently connected to                         |
 | STARTUP  | boolean          | Whether the script is running from ``autorun.lua`` (true) or false      |
-| log      | function<string, uint?> | A function that logs to your autorun console. Second param is level ascending with urgency, 5 being error, 4 warning, 3, info, 2 debug, 1 trace. Default 3        |
+| log      | function<string, uint?> | A function that logs to your autorun console. Second param is level ascending with urgency, 1 being error, 2 warning, 3, info, 4 debug, 5 trace. Default 3        |
 
 ### Examples
 __hook.lua__  
@@ -60,6 +60,6 @@ end
 __autorun.lua__  
 This will be the first lua script to run on your client when you join a server, use this to make detours and whatnot.
 ```lua
-local ERROR, WARN, INFO, DEBUG, TRACE = 5, 4, 3, 2, 1
+local ERROR, WARN, INFO, DEBUG, TRACE = 1, 2, 3, 4, 5
 sautorun.log( "Connected to server " .. sautorun.IP, DEBUG )
 ```

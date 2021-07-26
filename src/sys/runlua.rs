@@ -12,43 +12,46 @@ use rglua::{
 		CharBuf,
 		LuaState
 	},
+	globals::Lua::{
+		MULTRET as LUA_MULTRET,
+		GLOBALSINDEX as LUA_GLOBALSINDEX
+	},
 	rstring
 };
+
+const LUA_OK: i32 = 0;
+const NO_LUA_STATE: &str = "Didn't run lua code, lua state is not valid/loaded!";
+const INVALID_LOG_LEVEL: *const i8 = "Invalid log level (Should be 1-5, 1 being Error, 5 being Trace)\0".as_ptr() as *const i8;
 
 // Runs lua code through loadbufferx. Returns whether it successfully ran.
 pub fn runLua(code: &str) -> Result<(), String> {
 	let state = getLuaState();
 
 	if state == std::ptr::null_mut() {
-		return Err( "Invalid lua state".to_owned() );
+		return Err( NO_LUA_STATE.to_owned() );
 	}
 
-	let buf_code = match CString::new(code) {
-		Ok(code) => code,
-		Err(why) => {
-			return Err( format!("Couldn't convert code into a CString {}", why) );
-		}
-	};
+	let buf_code = CString::new(code).map_err(|x| format!("Couldn't convert script to CString. [{}]", x))?;
+	luaL_checkstack( state, 1, b"Stack is full 1!\0".as_ptr() as *const i8 );
 
-	let status = LUAL_LOADBUFFERX.call(
+	if LUAL_LOADBUFFERX.call(
 		state,
 		buf_code.as_ptr(),
-		std::mem::size_of_val(code),
+		code.len(),
 		b"@RunString\0".as_ptr() as CharBuf,
 		b"bt\0".as_ptr() as CharBuf
-	);
+	) != LUA_OK {
+		let err = lua_tostring(state, -1);
+		lua_pop(state, 1);
 
-	if status != 0 {
-		// Compile Error
-		let err = lua_tolstring(state, -1, 0);
-		lua_settop(state, -2);
+		luaL_checkstack( state, 1, b"Stack is full! 2\0".as_ptr() as *const i8 );
 		return Err( rstring!(err).to_owned() );
 	}
 
-	if lua_pcall(state, 0, rglua::globals::Lua::MULTRET, 0) != 0 {
-		let err_runtime = rstring!( lua_tolstring(state, -1, 0) );
-		lua_settop(state, -2);
-		return Err( err_runtime.to_owned() );
+	if lua_pcall(state, 0, 0, 0) != LUA_OK {
+		let err = lua_tostring(state, -1);
+		lua_pop(state, 1);
+		return Err( rstring!(err).to_owned() );
 	}
 
 	Ok(())
@@ -66,7 +69,7 @@ extern fn log(state: LuaState) -> i32 {
 		4 => debug!("{}", str),
 		5 => trace!("{}", str),
 		_ => {
-			luaL_argerror( state, 2, b"Invalid log level (Should be 1-5, 1 being Error, 5 being Trace)\0".as_ptr() as *const i8 );
+			luaL_argerror( state, 2, INVALID_LOG_LEVEL );
 		}
 	}
 	0
@@ -77,29 +80,23 @@ pub fn runLuaEnv(script: &str, identifier: CharBuf, dumped_script: CharBuf, ip: 
 	let state = getLuaState();
 
 	if state == std::ptr::null_mut() {
-		return Err( "Didn't run lua code, make sure the lua state is valid!".to_owned() );
+		return Err( NO_LUA_STATE.to_owned() );
 	}
 
-	let loadbufx_hook = &*LUAL_LOADBUFFERX;
+	let cscript = CString::new(script).map_err(|x| format!("Couldn't convert script to CString. [{}]", x))?;
 
-	let cscript = match std::ffi::CString::new(script) {
-		Err(why) => {
-			return Err( format!("Couldn't transform script into CString. {}", why) );
-		}
-		Ok(b) => b
-	};
-
-	let status = loadbufx_hook.call(state,
+	let status = LUAL_LOADBUFFERX.call(
+		state,
 		cscript.as_ptr(),
-		std::mem::size_of_val(script),
+		script.len(),
 		b"@RunString\0".as_ptr() as CharBuf,
 		b"bt\0".as_ptr() as CharBuf
 	);
 
-	if status != 0 {
+	if status != LUA_OK as i32 {
 		// Compile Error
 		let err = lua_tolstring(state, -1, 0);
-		lua_settop(state, -2);
+		lua_pop(state, 1);
 		return Err( rstring!(err).to_owned() );
 	}
 
@@ -130,16 +127,16 @@ pub fn runLuaEnv(script: &str, identifier: CharBuf, dumped_script: CharBuf, ip: 
 	lua_setfield( state, -2, b"sautorun\0".as_ptr() as CharBuf );
 
 	lua_createtable( state, 0, 0 ); // Create a metatable to make the env inherit from _G
-		lua_pushvalue( state, rglua::globals::Lua::GLOBALSINDEX );
+		lua_pushvalue( state, LUA_GLOBALSINDEX );
 		lua_setfield( state, -2, b"__index\0".as_ptr() as CharBuf );
 	lua_setmetatable( state, -2 );
 
 	lua_setfenv( state, -2 );
 
-	if lua_pcall(state, 0, rglua::globals::Lua::MULTRET, 0) != 0 {
-		let err_runtime = rstring!( lua_tolstring(state, -1, 0) );
-		lua_settop(state, -2);
-		return Err( err_runtime.to_owned() );
+	if lua_pcall(state, 0, LUA_MULTRET, 0) != 0 {
+		let err_runtime = lua_tolstring(state, -1, 0);
+		lua_pop(state, 1);
+		return Err( rstring!(err_runtime).to_owned() );
 	}
 
 	Ok(())

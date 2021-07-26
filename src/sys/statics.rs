@@ -1,9 +1,9 @@
 use std::{
-    path::PathBuf,
-    sync::atomic::{
-        AtomicBool,
-        AtomicPtr,
-    }
+	path::PathBuf,
+	sync::atomic::{
+		AtomicBool,
+		AtomicPtr,
+	}
 };
 
 use atomic::Atomic;
@@ -11,15 +11,8 @@ use atomic::Atomic;
 use once_cell::sync::{Lazy, OnceCell};
 
 use rglua::{
-    lua_shared::luaL_loadbufferx,
-    types::{
-        LuaState,
-        LuaCFunction,
-        CharBuf,
-        CInt,
-        SizeT,
-        CVoid
-    }
+	lua_shared::{luaL_loadbufferx, luaL_newstate},
+	types::*
 };
 
 use detour::GenericDetour; // detours-rs
@@ -46,14 +39,13 @@ pub static CURRENT_SERVER_IP: Atomic<&'static str>                 = Atomic::new
 pub static HAS_AUTORAN: AtomicBool                                 = AtomicBool::new(false); // Whether an autorun script has been run and detected already.
 pub static JOIN_SERVER: OnceCell< GenericDetour < LuaCFunction > > = OnceCell::new();
 
-pub static LUAL_LOADBUFFERX: Lazy< GenericDetour< extern fn(LuaState, CharBuf, SizeT, CharBuf, CharBuf) -> CInt > > = Lazy::new(|| {
-    unsafe {
-        match GenericDetour::new( *luaL_loadbufferx, crate::hooks::loadbufferx ) {
-            Ok(b) => {
-                b.enable().expect("Couldn't enable LOADBUFFERX hook.");
-                b
-            },
-            Err(why) => panic!("Errored when hooking LOADBUFFERX. Why: {}. Report this on github.", why)
-        }
-    }
+pub static LUAL_LOADBUFFERX: Lazy< GenericDetour< extern "C" fn(LuaState, CharBuf, SizeT, CharBuf, CharBuf) -> CInt > > = Lazy::new(|| unsafe {
+	GenericDetour::new( *luaL_loadbufferx, crate::hooks::loadbufferx )
+		.expect("Couldn't look luaL_loadbufferx")
+});
+
+
+pub static LUAL_NEWSTATE: Lazy< GenericDetour< extern "C" fn() -> LuaState > > = Lazy::new(|| unsafe {
+	GenericDetour::new( *luaL_newstate, crate::hooks::luaL_newstate )
+		.expect("Couldn't look luaL_newstate")
 });

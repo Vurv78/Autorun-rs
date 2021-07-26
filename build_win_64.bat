@@ -1,4 +1,4 @@
 @echo off
-cargo build --release
-move %cd%\target\release\Autorun.dll %cd%\gmsv_autorun_win64.dll
+cargo build
+move %cd%\target\debug\Autorun.dll %cd%\gmsv_autorun_win64.dll
 pause

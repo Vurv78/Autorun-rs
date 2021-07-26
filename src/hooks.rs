@@ -16,11 +16,21 @@ use rglua::{
 	rstring
 };
 
-pub extern fn loadbufferx(state: LuaState, code: CharBuf, size: SizeT, identifier: CharBuf, mode: CharBuf) -> CInt {
-	if state != std::ptr::null_mut() {
-		setLuaState(state);
-	}
+extern "C" fn atpanic(state: LuaState) -> i32 {
+	error!("Panic!");
+	info!("Stack. {}", lua_checkstack(state, 1));
+	0
+}
 
+pub extern "C" fn luaL_newstate() -> LuaState {
+	let state = LUAL_NEWSTATE.call();
+	info!("Set atpanic hook");
+	lua_atpanic(state, atpanic);
+	setLuaState(state);
+	state
+}
+
+pub extern "C" fn loadbufferx(state: LuaState, code: CharBuf, size: SizeT, identifier: CharBuf, mode: CharBuf) -> CInt {
 	// If JoinServer hasn't been hooked, hook it.
 	let _ = JOIN_SERVER.get_or_try_init(|| {
 		lua_getglobal( state, b"JoinServer\0".as_ptr() as CharBuf );
@@ -75,10 +85,8 @@ pub extern fn loadbufferx(state: LuaState, code: CharBuf, size: SizeT, identifie
 						do_run = lua_toboolean(state, 1) == 0;
 						lua_pop(state, 1);
 					}
-				}
-				Err(why) => {
-					error!("{}", why);
-				}
+				},
+				Err(why) => error!("{}", why)
 			}
 		}
 
@@ -99,7 +107,7 @@ pub extern fn loadbufferx(state: LuaState, code: CharBuf, size: SizeT, identifie
 
 // Since the first lua state will always be the menu state, just keep a variable for whether joinserver has been hooked or not,
 // If not, then hook it.
-pub extern fn joinserver(state: LuaState) -> CInt {
+pub extern "C" fn joinserver(state: LuaState) -> CInt {
 	let ip = rstring!( lua_tolstring(state, 1, 0) );
 	info!("Joining Server with IP {}!", ip);
 

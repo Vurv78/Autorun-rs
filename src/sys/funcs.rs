@@ -57,9 +57,9 @@ pub fn getAutorunHandle(garry_dir: &str, server_ip: &str) -> Option<File> {
 
 // Creating this function for the future where accessing the lua state doesn't directly need an unsafe block.
 pub fn getLuaState() -> LuaState {
-	CURRENT_LUA_STATE.load( Ordering::Acquire )
+	CURRENT_LUA_STATE.load( Ordering::SeqCst )
 }
 
 pub fn setLuaState(state: LuaState) {
-	CURRENT_LUA_STATE.store( state, Ordering::Release );
+	CURRENT_LUA_STATE.store( state, Ordering::SeqCst );
 }

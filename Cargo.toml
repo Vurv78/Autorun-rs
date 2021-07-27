@@ -10,12 +10,10 @@ edition = "2018"
 crate-type = ["dylib"]
 
 [dependencies]
-
-# lua_shared bindings
 rglua = { git = "https://github.com/Vurv78/rglua" }
 
 # Detour lua_loadbufferx and other functions
-detour = { version = "0.8.0", default-features = false }
+detour = { git = "https://github.com/darfink/detour-rs" }
 
 # Global Mutable Variables
 once_cell = "1.8.0"

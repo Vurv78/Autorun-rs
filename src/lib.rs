@@ -1,13 +1,18 @@
 #![allow(non_snake_case)]
+#![feature(abi_thiscall)]
+
 use std::{
 	thread,
 	sync::mpsc
 };
 
+use detour::static_detour;
+use rglua::interface::*;
+
 #[macro_use] extern crate log;
 extern crate simplelog;
 
-use once_cell::sync::OnceCell;
+use once_cell::sync::{Lazy, OnceCell};
 
 mod input; // Console input
 mod sys;   // Configs
@@ -26,6 +31,21 @@ extern "system" {
 	fn GetLastError() -> u32;
 }
 
+// You need rust nightly to use thiscall because ("fuck you" - 4 year old feature that hasn't been stabilized https://github.com/rust-lang/rust/issues/422026)
+type PaintTraverseFn = unsafe extern "thiscall" fn(&'static IPanel, usize, bool, bool);
+
+// Might as well use static detours if we're gonna be on nightly now I guess.
+static_detour! {
+	static PaintTraverseHook: unsafe extern "thiscall" fn(&'static IPanel, usize, bool, bool);
+}
+
+fn painttraverse_detour(this: &'static IPanel, panel_id: usize, force_repaint: bool, allow_force: bool) {
+	debug!("test");
+	unsafe {
+		PaintTraverseHook.call(this, panel_id, force_repaint, allow_force);
+	}
+}
+
 fn init() {
 	if let Err(why) = logging::init() {
 		eprintln!("Couldn't start logging module. [{}]", why);
@@ -33,11 +53,34 @@ fn init() {
 	}
 
 	unsafe {
-		if AllocConsole() == 0 {
-			error!("Couldn't allocate console. {}", GetLastError());
-		}
+		assert_eq!(
+			AllocConsole(), 1,
+			"Couldn't allocate console. Error id: [{}]", GetLastError()
+		);
+
+		let iface = get_interface_handle("engine.dll").unwrap();
+		let iface = get_from_interface("VEngineClient015", iface)
+			.unwrap() as *mut EngineClient;
+		let enginecl = iface.as_ref().unwrap();
+
+		let iface = get_interface_handle("vgui2").unwrap();
+		let iface = get_from_interface("VGUI_Panel009", iface)
+			.unwrap() as *mut IPanel;
+
+		let vgui = iface.as_ref().unwrap();
+
+		let painttraverse_obj: PaintTraverseFn = std::mem::transmute(
+			(vgui.vtable as *const *const i8).offset(41)
+		);
+
+		PaintTraverseHook
+			.initialize(painttraverse_obj, painttraverse_detour)
+			.unwrap()
+			.enable()
+			.unwrap();
+
+		//println!("Time. {}", enginecl.Time());
 	}
-	//assert_eq!( unsafe { AllocConsole() }, 1, "Couldn't allocate console" );
 
 	debug!("Initialized.");
 	println!("<---> Autorun-rs <--->");

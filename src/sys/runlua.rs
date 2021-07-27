@@ -32,7 +32,6 @@ pub fn runLua(code: &str) -> Result<(), String> {
 	}
 
 	let buf_code = CString::new(code).map_err(|x| format!("Couldn't convert script to CString. [{}]", x))?;
-	luaL_checkstack( state, 1, b"Stack is full 1!\0".as_ptr() as *const i8 );
 
 	if LUAL_LOADBUFFERX.call(
 		state,

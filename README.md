@@ -18,8 +18,8 @@ The traditional (but more inconvenient) method to use this is to just inject it.
 ### Menu Plugin
 Autorun can also be used as a menu plugin / required from lua. Just as any other scripthook, it is ran from the menu state.  
 1. Put the ``gmsv_autorun_win<arch>.dll`` file into your ``garrysmod/lua/bin`` folder.
-2. Add ``require("autorun")`` at the bottom of ``garrysmod/lua/menu/menu.lua``
-It will now run automatically when garrysmod loads at the menu.
+2. Add ``require("autorun")`` at the bottom of ``garrysmod/lua/menu/menu.lua``  
+**It will now run automatically when garrysmod loads at the menu.**
 
 ## Scripthook
 Autorun features scripthook, which means we'll run your script before any other garrysmod script executes to verify if you want the code to run by running your own hook script.

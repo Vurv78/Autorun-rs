@@ -16,7 +16,9 @@ jobs:
         cargo build --release --verbose
 
     - name: Clippy
-      run: cargo clippy
+      run: |
+        rustup component add clippy
+        cargo clippy
 
     - name: Upload DLL
       uses: actions/upload-artifact@v2

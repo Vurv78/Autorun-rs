@@ -76,7 +76,7 @@ fn luaL_loadbufferx(state: LuaState, code: CharBuf, size: SizeT, identifier: Cha
 
 	if let Some(mut file) = getAutorunHandle(raw_path, server_ip) {
 		if let Err(why) = file.write_all( unsafe { std::ffi::CStr::from_ptr(code) }.to_bytes() ) {
-			eprintln!("Couldn't write to file made from lua path [{}]. {}", raw_path, why);
+			error!("Couldn't write to file made from lua path [{}]. {}", raw_path, why);
 		}
 	}
 
@@ -100,7 +100,6 @@ pub fn joinserver(state: LuaState) -> CInt {
 }
 
 fn paint_traverse(this: &'static IPanel, panel_id: usize, force_repaint: bool, force_allow: bool) {
-	//println!("Painttraverse: {}, Force_Repaint: {}, Force_Allow: {}", panel_id, force_repaint, force_allow);
 	paint_traverse_h.call(this, panel_id, force_repaint, force_allow);
 
 	let script_queue = &mut *LUA_SCRIPTS
@@ -149,7 +148,6 @@ pub unsafe fn init() -> Result<(), detour::Error> {
 
 	let panel_interface = vgui_interface.as_ref().unwrap();
 
-	println!("VGUI: {:?}, Panel interface: {:p}", vgui_interface, panel_interface);
 	type PaintTraverseFn = extern "thiscall" fn(&'static IPanel, usize, bool, bool);
 	// Get painttraverse raw function object to detour.
 	let painttraverse: PaintTraverseFn = std::mem::transmute(

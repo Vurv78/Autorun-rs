@@ -63,3 +63,8 @@ This will be the first lua script to run on your client when you join a server, 
 local ERROR, WARN, INFO, DEBUG, TRACE = 1, 2, 3, 4, 5
 sautorun.log( "Connected to server " .. sautorun.IP, DEBUG )
 ```
+
+### Building
+See the build_win_32.bat and build_win_64.bat files for basic builds.  
+**This requires Nightly**, make sure your default toolchain is nightly.  
+Until ``"thiscall"`` and ``static_detour!`` are stabilized, it will not be able to be built on stable.  

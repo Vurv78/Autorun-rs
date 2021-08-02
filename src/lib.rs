@@ -1,25 +1,17 @@
 #![allow(non_snake_case)]
 #![feature(abi_thiscall)]
 
-use std::{
-	thread,
-	sync::mpsc
-};
-
-use detour::static_detour;
-use rglua::interface::*;
+use std::{sync::mpsc, thread};
 
 #[macro_use] extern crate log;
 extern crate simplelog;
 
-use once_cell::sync::{Lazy, OnceCell};
+use once_cell::sync::OnceCell;
 
 mod input; // Console input
 mod sys;   // Configs
-mod hooks; // Hook functions for detours
-mod logging; // You guessed it, logging
-
-use sys::statics::*;
+mod detours;
+mod logging;
 
 const SENDER: OnceCell< mpsc::Sender<()> > = OnceCell::new();
 const DLL_PROCESS_ATTACH: u32 = 1;
@@ -29,21 +21,6 @@ extern "system" {
 	fn AllocConsole() -> i32;
 	fn FreeConsole() -> i32;
 	fn GetLastError() -> u32;
-}
-
-// You need rust nightly to use thiscall because ("fuck you" - 4 year old feature that hasn't been stabilized https://github.com/rust-lang/rust/issues/422026)
-type PaintTraverseFn = unsafe extern "thiscall" fn(&'static IPanel, usize, bool, bool);
-
-// Might as well use static detours if we're gonna be on nightly now I guess.
-static_detour! {
-	static PaintTraverseHook: unsafe extern "thiscall" fn(&'static IPanel, usize, bool, bool);
-}
-
-fn painttraverse_detour(this: &'static IPanel, panel_id: usize, force_repaint: bool, allow_force: bool) {
-	debug!("test");
-	unsafe {
-		PaintTraverseHook.call(this, panel_id, force_repaint, allow_force);
-	}
 }
 
 fn init() {
@@ -57,44 +34,21 @@ fn init() {
 			AllocConsole(), 1,
 			"Couldn't allocate console. Error id: [{}]", GetLastError()
 		);
+	}
 
-		let iface = get_interface_handle("engine.dll").unwrap();
-		let iface = get_from_interface("VEngineClient015", iface)
-			.unwrap() as *mut EngineClient;
-		let enginecl = iface.as_ref().unwrap();
-
-		let iface = get_interface_handle("vgui2").unwrap();
-		let iface = get_from_interface("VGUI_Panel009", iface)
-			.unwrap() as *mut IPanel;
-
-		let vgui = iface.as_ref().unwrap();
-
-		let painttraverse_obj: PaintTraverseFn = std::mem::transmute(
-			(vgui.vtable as *const *const i8).offset(41)
-		);
-
-		PaintTraverseHook
-			.initialize(painttraverse_obj, painttraverse_detour)
-			.unwrap()
-			.enable()
-			.unwrap();
-
-		//println!("Time. {}", enginecl.Time());
+	if let Err(why) = unsafe { detours::init() } {
+		error!("Fatal error when setting up detours. {}", why);
+		return;
 	}
 
 	debug!("Initialized.");
 	println!("<---> Autorun-rs <--->");
 	println!("Type [help] for the list of commands");
 
-	unsafe {
-		LUAL_LOADBUFFERX.enable().expect("Couldn't enable luaL_loadbufferx hook");
-		LUAL_NEWSTATE.enable().expect("Couldn't enable luaL_newstate hook");
-	}
-
 	let (sender, receiver) = mpsc::channel();
 
 	thread::spawn(move || loop {
-		if let Ok(_) = input::try_process_input() {
+		if input::try_process_input().is_ok() {
 			// Got a command
 			continue;
 		}
@@ -114,11 +68,11 @@ fn init() {
 
 fn cleanup() {
 	// Detour cleanups
+	if let Err(why) = unsafe { detours::cleanup() } {
+		error!("Failed to cleanup all detours. {}", why);
+	}
+
 	unsafe {
-		LUAL_LOADBUFFERX.disable().unwrap();
-		if let Some(hook) = JOIN_SERVER.get() {
-			hook.disable().unwrap();
-		}
 		FreeConsole();
 	};
 	if let Some(sender) = SENDER.get() {
@@ -141,9 +95,10 @@ use rglua::types::LuaState;
 
 #[no_mangle]
 pub extern "C" fn gmod13_open(state: LuaState) -> i32 {
+	use crate::sys::funcs::initMenuState;
 	init();
-	CURRENT_LUA_STATE.store(state, atomic::Ordering::SeqCst);
-
+	initMenuState(state)
+		.expect("Couldn't initialize menu state.");
 	0
 }
 

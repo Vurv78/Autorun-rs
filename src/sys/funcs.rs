@@ -55,11 +55,39 @@ pub fn getAutorunHandle(garry_dir: &str, server_ip: &str) -> Option<File> {
 	}
 }
 
-// Creating this function for the future where accessing the lua state doesn't directly need an unsafe block.
-pub fn getLuaState() -> LuaState {
-	CURRENT_LUA_STATE.load( Ordering::SeqCst )
+pub fn initMenuState(state: LuaState) -> Result<(), detour::Error> {
+	use rglua::lua_shared::*;
+	use std::sync::atomic::AtomicPtr;
+	use crate::detours::{joinserver_h, joinserver};
+
+	MENU_STATE
+		.set( AtomicPtr::from(state) )
+		.expect("MENU_STATE was occupied in gmod13_open. Shouldn't happen.");
+
+	info!("Init menu state");
+
+	lua_getglobal( state, "JoinServer\0".as_ptr() as *const i8 );
+	let joinserver_fn = lua_tocfunction(state, -1);
+	lua_pop(state, 1);
+
+	unsafe {
+		joinserver_h
+			.initialize(joinserver_fn, joinserver)?
+			.enable()?;
+	}
+
+	Ok(())
 }
 
-pub fn setLuaState(state: LuaState) {
-	CURRENT_LUA_STATE.store( state, Ordering::SeqCst );
+// Creating this function for the future where accessing the lua state doesn't directly need an unsafe block.
+pub fn getClientState() -> LuaState {
+	CLIENT_STATE.load( Ordering::Acquire )
+}
+
+pub fn getMenuState() -> Option<LuaState> {
+	Some( MENU_STATE.get()?.load(Ordering::Acquire) )
+}
+
+pub fn setClientState(state: LuaState) {
+	CLIENT_STATE.store( state, Ordering::Release);
 }

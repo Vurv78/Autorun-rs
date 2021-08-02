@@ -1,6 +1,6 @@
 [package]
 name = "autorun"
-version = "0.4.1"
+version = "0.5.0"
 authors = ["Vurv78 <Vurv78@users.noreply.github.com>"]
 edition = "2018"
 
@@ -12,15 +12,14 @@ crate-type = ["dylib"]
 [dependencies]
 rglua = { git = "https://github.com/Vurv78/rglua" }
 
-# Detour lua_loadbufferx and other functions
-detour = { git = "https://github.com/darfink/detour-rs" }
+detour = "0.8.1"
 
 # Global Mutable Variables
 once_cell = "1.8.0"
 atomic = "0.5.0"
 
 # Misc
-dirs = "3.0.2" # To get your home directory.
+home = "0.5.3"
 anyhow = "1.0.42"
 
 # Logging

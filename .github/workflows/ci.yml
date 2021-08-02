@@ -11,14 +11,19 @@ jobs:
     steps:
     - uses: actions/checkout@v2
     - name: Build
-      run: cargo build --release --verbose
+      run: |
+        rustup default nightly
+        cargo build --release --verbose
+
+    - name: Clippy
+      run: cargo clippy
 
     - name: Upload DLL
       uses: actions/upload-artifact@v2
       with:
         name: 64 Bit
         path: target/release/Autorun.dll
-  
+
   # In the future make this run on an x86 machine https://github.com/actions/runner/issues/423
   buildx86:
     runs-on: windows-latest
@@ -26,6 +31,7 @@ jobs:
     - uses: actions/checkout@v2
     - name: Build
       run: |
+        rustup default nightly
         rustup target add i686-pc-windows-msvc
         cargo build --release --verbose --target=i686-pc-windows-msvc
 

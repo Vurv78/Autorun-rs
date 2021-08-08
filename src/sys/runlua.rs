@@ -69,7 +69,7 @@ extern fn log(state: LuaState) -> i32 {
 }
 
 // Runs lua, but inside of the sautorun environment.
-pub fn runLuaEnv(script: &str, identifier: CharBuf, dumped_script: CharBuf, ip: &str, startup: bool) -> Result<(), String> {
+pub fn runLuaEnv(script: &str, identifier: CharBuf, dumped_script: CharBuf, ip: &str, startup: bool) -> Result<i32, String> {
 	let state = getClientState();
 
 	if state == std::ptr::null_mut() {
@@ -77,6 +77,8 @@ pub fn runLuaEnv(script: &str, identifier: CharBuf, dumped_script: CharBuf, ip: 
 	}
 
 	let cscript = CString::new(script).map_err(|x| format!("Couldn't convert script to CString. [{}]", x))?;
+
+	let top = lua_gettop(state);
 
 	if luaL_loadbufferx_h.call(
 		state,
@@ -93,9 +95,9 @@ pub fn runLuaEnv(script: &str, identifier: CharBuf, dumped_script: CharBuf, ip: 
 
 	lua_createtable( state, 0, 0 ); // Create our custom environment
 
-	lua_createtable( state, 0, 0 ); // Create the  'sautorun' table
+	lua_createtable( state, 0, 0 ); // Create the 'sautorun' table
 
-	lua_pushstring( state, identifier );
+		lua_pushstring( state, identifier );
 		lua_setfield( state, -2, "NAME\0".as_ptr() as CharBuf );
 
 		lua_pushstring( state, dumped_script );
@@ -130,5 +132,5 @@ pub fn runLuaEnv(script: &str, identifier: CharBuf, dumped_script: CharBuf, ip: 
 		return Err( rstring!(err_runtime).to_owned() );
 	}
 
-	Ok(())
+	Ok(top)
 }

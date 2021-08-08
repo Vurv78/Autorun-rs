@@ -1,6 +1,6 @@
 [package]
 name = "autorun"
-version = "0.5.0"
+version = "0.5.1"
 authors = ["Vurv78 <Vurv78@users.noreply.github.com>"]
 edition = "2018"
 

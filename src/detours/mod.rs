@@ -14,6 +14,9 @@ use rglua::{
 
 use detour::static_detour;
 
+const LUA_BOOL: i32 = rglua::globals::Lua::Type::Bool as i32;
+const LUA_STRING: i32 = rglua::globals::Lua::Type::String as i32;
+
 static_detour! {
 	pub static luaL_newstate_h: extern "C" fn() -> LuaState;
 	pub static luaL_loadbufferx_h: extern "C" fn(LuaState, CharBuf, SizeT, CharBuf, CharBuf) -> CInt;
@@ -23,7 +26,7 @@ static_detour! {
 
 fn luaL_newstate() -> LuaState {
 	let state = luaL_newstate_h.call();
-	info!("Got client state through luaL_newstate");
+	debug!("Got client state through luaL_newstate");
 	setClientState(state);
 	state
 }
@@ -40,7 +43,6 @@ fn luaL_loadbufferx(state: LuaState, code: CharBuf, size: SizeT, identifier: Cha
 	let raw_path = &rstring!(identifier)[1 ..]; // Remove the @ from the beginning of the path.
 	let server_ip = CURRENT_SERVER_IP.load( Ordering::Relaxed );
 
-	let mut autoran = false;
 	let mut do_run = true;
 	if raw_path == "lua/includes/init.lua" {
 		if HAS_AUTORAN.compare_exchange(false, true, Ordering::Relaxed, Ordering::Relaxed).is_ok() {
@@ -51,27 +53,30 @@ fn luaL_loadbufferx(state: LuaState, code: CharBuf, size: SizeT, identifier: Cha
 				if let Err(why) = runLuaEnv(&script, identifier, code, server_ip, true) {
 					error!("{}", why);
 				}
-				autoran = true;
 			} else {
 				error!( "Couldn't read your autorun script file at {}/{}", SAUTORUN_DIR.display(), AUTORUN_SCRIPT_PATH.display() );
 			}
 		}
 	}
 
-	if !autoran {
-		if let Ok(script) = fs::read_to_string(&*HOOK_SCRIPT_PATH) {
-			match runLuaEnv(&script, identifier, code, server_ip, false) {
-				Ok(_) => {
-					// If you return ``true`` in your sautorun/hook.lua file, then don't run the sautorun.CODE that is about to run.
-					if lua_type(state, 1) == rglua::globals::Lua::Type::Bool as i32 {
-						do_run = lua_toboolean(state, 1) == 0;
-						lua_pop(state, 1);
-					}
-				},
-				Err(why) => error!("{}", why)
-			}
+	let mut new_code = None;
+	if let Ok(script) = fs::read_to_string(&*HOOK_SCRIPT_PATH) {
+		match runLuaEnv(&script, identifier, code, server_ip, false) {
+			Ok(top) => {
+				// If you return ``true`` in your sautorun/hook.lua file, then don't run the sautorun.CODE that is about to run.
+				match lua_type(state, top + 1) {
+					LUA_BOOL => {
+						do_run = lua_toboolean(state, top + 1) == 0;
+					},
+					LUA_STRING => {
+						new_code = Some( lua_tostring(state, top + 1) );
+					},
+					_ => ()
+				}
+				lua_settop(state, top);
+			},
+			Err(_why) => ()
 		}
-
 	}
 
 	if let Some(mut file) = getAutorunHandle(raw_path, server_ip) {
@@ -82,7 +87,7 @@ fn luaL_loadbufferx(state: LuaState, code: CharBuf, size: SizeT, identifier: Cha
 
 	if do_run {
 		// Call the original function and return the value.
-		return luaL_loadbufferx_h.call( state, code, size, identifier, mode );
+		return luaL_loadbufferx_h.call( state, new_code.unwrap_or(code), size, identifier, mode );
 	}
 	0
 }
@@ -127,7 +132,7 @@ fn paint_traverse(this: &'static IPanel, panel_id: usize, force_repaint: bool, f
 			lua_pop(state, 1);
 			error!("{}", rstring!(err));
 		} else {
-			info!("Code [len {}] ran successfully.", script.len())
+			info!("Code [#{}] ran successfully.", script.len())
 		}
 	}
 }

@@ -12,13 +12,13 @@ pub fn init() -> anyhow::Result<()> {
 	let log_file_handle = File::create( SAUTORUN_LOG_DIR.join( format!("{}.log", Local::now().format("%B %d, %Y %I-%M %P") ) ) )?;
 
 	let configs = ConfigBuilder::new()
-		.set_level_color( Level::Info, Some( Color::Cyan) )
-		.set_level_color( Level::Error, Some( Color::Red) )
-		.set_level_color( Level::Warn, Some( Color::Yellow) )
+		.set_level_color( Level::Info, Some( Color::Cyan ) )
+		.set_level_color( Level::Error, Some( Color::Red ) )
+		.set_level_color( Level::Warn, Some( Color::Yellow ) )
 		.build();
 
 	CombinedLogger::init(
-vec![
+		vec![
 			TermLogger::new(
 				// Logs that are level 'info' or above will be sent to the console.
 				LevelFilter::Info,

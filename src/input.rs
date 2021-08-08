@@ -12,21 +12,19 @@ pub(crate) fn try_process_input() -> anyhow::Result<()> {
 	debug!("Command used: [{}], rest [{}]", word, rest);
 
 	match word {
-		"lua_run_cl" => match runLua(REALM_CLIENT, rest.to_owned()) {
-			Err(why) => error!("{}", why),
-			_ => () // We don't know if it was successful yet. The code will run later in painttraverse and print there.
+		"lua_run_cl" => if let Err(why) = runLua(REALM_CLIENT, rest.to_owned()) {
+			error!("{}", why);
+			// We don't know if it was successful yet. The code will run later in painttraverse and print there.
 		},
 		"lua_openscript_cl" => match std::fs::read_to_string( Path::new(rest_trim) ) {
 			Err(why) => error!("Errored on lua_openscript. [{}]", why),
-			Ok(contents) => match runLua( REALM_CLIENT, contents ) {
-				Err(why) => error!("{}", why),
-				_ => ()
+			Ok(contents) => if let Err(why) = runLua( REALM_CLIENT, contents ) {
+				error!("{}", why);
 			}
 		},
 
-		"lua_run_menu" => match runLua(REALM_MENU, rest.to_owned()) {
-			Err(why) => error!("{}", why),
-			_ => ()
+		"lua_run_menu" => if let Err(why) = runLua(REALM_MENU, rest.to_owned()) {
+			error!("{}", why);
 		},
 
 		"lua_openscript_menu" => match std::fs::read_to_string( Path::new( rest ) ) {

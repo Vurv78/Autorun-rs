@@ -75,6 +75,7 @@ fn cleanup() {
 	unsafe {
 		FreeConsole();
 	};
+
 	if let Some(sender) = SENDER.get() {
 		sender.send(()).expect("Couldn't send mpsc kill message");
 	}

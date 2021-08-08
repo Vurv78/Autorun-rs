@@ -40,6 +40,8 @@ C:\Users\<User>\sautorun-rs
 │   ├── \192.168.1.1\
 │   ├── \192.168.1.2\
 │   └── \241241.352.1.3\
+│   \logs\
+│   └── August 02, 2021 01-00 pm.log
 └── ...
 ```
 
@@ -70,7 +72,11 @@ local ERROR, WARN, INFO, DEBUG, TRACE = 1, 2, 3, 4, 5
 sautorun.log( "Connected to server " .. sautorun.IP, DEBUG )
 ```
 
-### Building
-See the build_win_32.bat and build_win_64.bat files for basic builds.  
-**This requires Nightly**, make sure your default toolchain is nightly.  
-Until ``"thiscall"`` and ``static_detour!`` are stabilized, it will not be able to be built on stable.  
+## Logging
+Autorun automatically writes logs to a log file whenever you boot up a game for your security and for easy debugging.  
+Check the sautorun-rs/logs directory for crash dumps & logs if you use something like [Safety](https://github.com/Vurv78/Safety) to log HTTP requests, etc.
+
+## Building
+1. [Setup Rust & Cargo](https://www.rust-lang.org/learn/get-started)
+2. Use ``build_win_32.bat`` or ``build_win_64.bat``.  
+**This requires Nightly** (in order to use ``thiscall`` and ``static_detour!``)  

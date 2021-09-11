@@ -4,9 +4,15 @@ use std::{
 	sync::atomic::Ordering
 };
 
+use rglua::{
+	lua_shared::*,
+	types::LuaState,
+	rstring
+};
 
-use rglua::types::LuaState;
+const LUA_OK: i32 = 0;
 
+use crate::detours::luaL_loadbufferx_h;
 use crate::sys::{
 	statics::*
 };
@@ -32,8 +38,8 @@ pub fn getAutorunHandle(garry_dir: &str, server_ip: &str) -> Option<File> {
 
 	let file_loc = &*SAUTORUN_DIR
 		.join("lua_dumps")
-		.join(server_ip.replace(":","."))
-		.join(&garry_dir.to_owned().replace(":", "."));
+		.join( sanitizePath(server_ip) )
+		.join( sanitizePath(garry_dir) );
 
 	match file_loc.parent() {
 		Some(dirs) => {
@@ -90,4 +96,63 @@ pub fn getMenuState() -> Option<LuaState> {
 
 pub fn setClientState(state: LuaState) {
 	CLIENT_STATE.store( state, Ordering::Release);
+}
+
+// https://github.com/parshap/node-sanitize-filename/blob/master/index.js
+
+use regex::Regex;
+use once_cell::sync::Lazy;
+
+// ? < > \ : * | " minus /, since we want to allow directories here
+static ILLEGAL: Lazy<Regex> = Lazy::new(|| Regex::new( r#"[\x{003F}\x{003C}\x{003E}\x{005C}\x{003A}\x{002A}\x{007C}\x{0022}]"#).unwrap() );
+static CONTROL_RESERVED: Lazy<Regex> = Lazy::new(|| Regex::new( r"\x00-\x1f\x80-\x9f" ).unwrap() );
+static RESERVED: Lazy<Regex> = Lazy::new(|| Regex::new( r"^\.+$" ).unwrap() );
+static WINDOWS_RESERVED: Lazy<Regex> = Lazy::new(|| Regex::new( r"^(?i)(con|prn|aux|nul|com[0-9]|lpt[0-9])(\..*)?$" ).unwrap() );
+static WINDOWS_TRAILING: Lazy<Regex> = Lazy::new(|| Regex::new( r"[\. ]+$" ).unwrap() );
+static TRAVERSE: Lazy<Regex> = Lazy::new(|| Regex::new( r"\.{2,}\x{002F}?" ).unwrap() ); // We need this since we allow / (directories)
+
+const REPL: &str = "_";
+
+// Returns a string that is safe to use as a file path
+pub fn sanitizePath<T: AsRef<str>>(input: T) -> String  {
+	let path = ILLEGAL.replace_all(&input.as_ref(), REPL);
+	let path = CONTROL_RESERVED.replace_all(&path, REPL);
+	let path = RESERVED.replace_all(&path, REPL);
+	let path = WINDOWS_RESERVED.replace_all(&path, REPL);
+	let path = WINDOWS_TRAILING.replace_all(&path, REPL);
+	let path = TRAVERSE.replace_all(&path, REPL);
+
+	path.into()
+}
+
+
+pub fn lua_compilestring(state: LuaState, code: &str) -> Result<(), &'static str> {
+	if luaL_loadbufferx_h.call(
+		state,
+		code.as_ptr() as *const i8,
+		code.len(),
+		"@RunString\0".as_ptr() as *const i8,
+		"bt\0".as_ptr() as *const i8
+	) != LUA_OK {
+		let err = lua_tolstring(state, -1, 0);
+		lua_pop(state, 1);
+		return Err( rstring!(err) );
+	}
+
+	Ok(())
+}
+
+pub fn lua_pexec(state: LuaState) -> Result<(), &'static str> {
+	if lua_pcall( state, 0, -1, 0) != LUA_OK {
+		let err = lua_tolstring(state, -1, 0);
+		lua_pop(state, 1);
+		return Err( rstring!(err) );
+	}
+	Ok(())
+}
+
+pub fn lua_dostring(state: LuaState, code: &str) -> Result<(), &'static str> {
+	lua_compilestring(state, code)?;
+	lua_pexec(state)?;
+	Ok(())
 }

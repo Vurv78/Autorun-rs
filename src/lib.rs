@@ -83,7 +83,7 @@ fn cleanup() {
 
 // Windows Only. I'm not going to half-ass Linux support (And don't even get me to try and work with OSX..)
 #[no_mangle]
-pub extern "stdcall" fn DllMain(_: *const u8, reason: u32, _: *const u8) -> u32 {
+pub extern "system" fn DllMain(_: *const u8, reason: u32, _: *const u8) -> u32 {
 	match reason {
 		DLL_PROCESS_ATTACH => init(),
 		DLL_PROCESS_DETACH => cleanup(),
@@ -96,7 +96,7 @@ use rglua::types::LuaState;
 
 #[no_mangle]
 pub extern "C" fn gmod13_open(state: LuaState) -> i32 {
-	use crate::sys::funcs::initMenuState;
+	use crate::sys::util::initMenuState;
 	init();
 	initMenuState(state)
 		.expect("Couldn't initialize menu state.");

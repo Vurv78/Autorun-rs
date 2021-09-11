@@ -10,6 +10,7 @@ use rglua::types::*;
 pub static HOME_DIR: Lazy<PathBuf> = Lazy::new(|| home::home_dir().expect("Couldn't get your home directory!") );
 pub static SAUTORUN_DIR: Lazy<PathBuf> = Lazy::new(|| HOME_DIR.join("sautorun-rs") );
 pub static SAUTORUN_LOG_DIR: Lazy<PathBuf> = Lazy::new(|| SAUTORUN_DIR.join("logs") );
+pub static SAUTORUN_SCRIPT_DIR: Lazy<PathBuf> = Lazy::new(|| SAUTORUN_DIR.join("scripts") );
 
 // This location is run right before autorun.
 pub static AUTORUN_SCRIPT_PATH: Lazy<PathBuf> = Lazy::new(|| (*SAUTORUN_DIR).join("autorun.lua") );

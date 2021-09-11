@@ -1,5 +1,5 @@
 pub mod statics; // Global variables.
-pub mod funcs;
+pub mod util;
 pub mod runlua;
 
 pub use runlua::*;

@@ -1,7 +1,7 @@
 use std::{fs, io::prelude::*, sync::atomic::Ordering};
 
 use crate::sys::{
-	funcs::{getAutorunHandle, getClientState, setClientState},
+	util::{self, getAutorunHandle, getClientState, setClientState},
 	runlua::runLuaEnv, statics::*
 };
 
@@ -19,7 +19,7 @@ const LUA_STRING: i32 = rglua::globals::Lua::Type::String as i32;
 
 static_detour! {
 	pub static luaL_newstate_h: extern "C" fn() -> LuaState;
-	pub static luaL_loadbufferx_h: extern "C" fn(LuaState, CharBuf, SizeT, CharBuf, CharBuf) -> CInt;
+	pub static luaL_loadbufferx_h: extern "C" fn(LuaState, *const i8, SizeT, *const i8, *const i8) -> CInt;
 	pub static joinserver_h: extern "C" fn(LuaState) -> CInt;
 	pub static paint_traverse_h: extern "thiscall" fn(&'static IPanel, usize, bool, bool);
 }
@@ -31,8 +31,8 @@ fn luaL_newstate() -> LuaState {
 	state
 }
 
-fn luaL_loadbufferx(state: LuaState, code: CharBuf, size: SizeT, identifier: CharBuf, mode: CharBuf) -> CInt {
-	use crate::sys::funcs::initMenuState;
+fn luaL_loadbufferx(state: LuaState, mut code: *const i8, mut size: SizeT, identifier: *const i8, mode: *const i8) -> CInt {
+	use crate::sys::util::initMenuState;
 	if MENU_STATE.get().is_none() {
 		initMenuState(state)
 			.expect("Couldn't initialize menu state");
@@ -59,7 +59,6 @@ fn luaL_loadbufferx(state: LuaState, code: CharBuf, size: SizeT, identifier: Cha
 		}
 	}
 
-	let mut new_code = None;
 	if let Ok(script) = fs::read_to_string(&*HOOK_SCRIPT_PATH) {
 		match runLuaEnv(&script, identifier, code, server_ip, false) {
 			Ok(top) => {
@@ -69,7 +68,12 @@ fn luaL_loadbufferx(state: LuaState, code: CharBuf, size: SizeT, identifier: Cha
 						do_run = lua_toboolean(state, top + 1) == 0;
 					},
 					LUA_STRING => {
-						new_code = Some( lua_tostring(state, top + 1) );
+						let nul_str = lua_tostring(state, top + 1);
+						let cstr = unsafe { std::ffi::CStr::from_ptr(nul_str) };
+						let cutoff = cstr.to_bytes(); // String without the null char at the end (lua strings are always nul terminated)
+
+						code = cutoff.as_ptr() as *const i8;
+						size = cutoff.len();
 					},
 					_ => ()
 				}
@@ -87,7 +91,7 @@ fn luaL_loadbufferx(state: LuaState, code: CharBuf, size: SizeT, identifier: Cha
 
 	if do_run {
 		// Call the original function and return the value.
-		return luaL_loadbufferx_h.call( state, new_code.unwrap_or(code), size, identifier, mode );
+		return luaL_loadbufferx_h.call( state, code, size, identifier, mode );
 	}
 	0
 }
@@ -121,18 +125,13 @@ fn paint_traverse(this: &'static IPanel, panel_id: usize, force_repaint: bool, f
 
 		if state == std::ptr::null_mut() { return; }
 
-		if luaL_loadbufferx_h.call(
-			state,
-			script.as_ptr() as *const i8,
-			script.len(),
-			"@RunString\0".as_ptr() as CharBuf,
-			"bt\0".as_ptr() as CharBuf
-		) != 0 || lua_pcall(state, 0, 0, 0) != 0 {
-			let err = lua_tostring(state, -1);
-			lua_pop(state, 1);
-			error!("{}", rstring!(err));
-		} else {
-			info!("Code [#{}] ran successfully.", script.len())
+		match util::lua_dostring(state, &script) {
+			Err(why) => {
+				error!("{}", why);
+			},
+			Ok(_) => {
+				info!("Code [#{}] ran successfully.", script.len())
+			}
 		}
 	}
 }

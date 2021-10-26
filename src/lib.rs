@@ -26,7 +26,7 @@ extern "system" {
 }
 
 fn init() {
-	if let Err(why) = logging::init_logging() {
+	if let Err(why) = logging::init() {
 		eprintln!("Couldn't start logging module. [{}]", why);
 		return;
 	}

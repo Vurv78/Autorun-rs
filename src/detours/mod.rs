@@ -34,8 +34,9 @@ fn luaL_newstate() -> LuaState {
 fn luaL_loadbufferx(state: LuaState, mut code: *const i8, mut size: SizeT, identifier: *const i8, mode: *const i8) -> CInt {
 	use crate::sys::util::initMenuState;
 	if MENU_STATE.get().is_none() {
-		initMenuState(state)
-			.expect("Couldn't initialize menu state");
+		if let Err(why) = initMenuState(state) {
+			error!("Couldn't initialize menu state.");
+		}
 	}
 
 	// Todo: Check if you're in menu state (Not by checking MENU_DLL because that can be modified by lua) and if so, don't dump files.
@@ -44,18 +45,16 @@ fn luaL_loadbufferx(state: LuaState, mut code: *const i8, mut size: SizeT, ident
 	let server_ip = CURRENT_SERVER_IP.load( Ordering::Relaxed );
 
 	let mut do_run = true;
-	if raw_path == "lua/includes/init.lua" {
-		if HAS_AUTORAN.compare_exchange(false, true, Ordering::Relaxed, Ordering::Relaxed).is_ok() {
-			// This will only run once when HAS_AUTORAN is false, setting it to true.
-			// Will be reset by JoinServer.
-			if let Ok(script) = fs::read_to_string(&*AUTORUN_SCRIPT_PATH) {
-				// Try to run here
-				if let Err(why) = runLuaEnv(&script, identifier, code, server_ip, true) {
-					error!("{}", why);
-				}
-			} else {
-				error!( "Couldn't read your autorun script file at {}/{}", SAUTORUN_DIR.display(), AUTORUN_SCRIPT_PATH.display() );
+	if raw_path == "lua/includes/init.lua" && HAS_AUTORAN.compare_exchange(false, true, Ordering::Relaxed, Ordering::Relaxed).is_ok() {
+		// This will only run once when HAS_AUTORAN is false, setting it to true.
+		// Will be reset by JoinServer.
+		if let Ok(script) = fs::read_to_string(&*AUTORUN_SCRIPT_PATH) {
+			// Try to run here
+			if let Err(why) = runLuaEnv(&script, identifier, code, server_ip, true) {
+				error!("{}", why);
 			}
+		} else {
+			error!( "Couldn't read your autorun script file at {}/{}", SAUTORUN_DIR.display(), AUTORUN_SCRIPT_PATH.display() );
 		}
 	}
 
@@ -115,7 +114,7 @@ fn paint_traverse(this: &'static IPanel, panel_id: usize, force_repaint: bool, f
 		.lock()
 		.unwrap();
 
-	if script_queue.len() > 0 {
+	if !script_queue.is_empty() {
 		let (realm, script) = script_queue.remove(0);
 
 		let state = match realm {
@@ -123,7 +122,7 @@ fn paint_traverse(this: &'static IPanel, panel_id: usize, force_repaint: bool, f
 			REALM_CLIENT => getClientState()
 		};
 
-		if state == std::ptr::null_mut() { return; }
+		if state.is_null() { return; }
 
 		match util::lua_dostring(state, &script) {
 			Err(why) => {

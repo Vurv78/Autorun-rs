@@ -6,7 +6,7 @@ pub(crate) fn try_process_input() -> anyhow::Result<()> {
 	let mut buffer = String::new();
 
 	std::io::stdin().read_line(&mut buffer)?;
-	let (word, rest) = buffer.split_once(' ').unwrap_or( (&buffer.trim_end(), "") );
+	let (word, rest) = buffer.split_once(' ').unwrap_or( (buffer.trim_end(), "") );
 	let rest_trim = rest.trim_end();
 
 	debug!("Command used: [{}], rest [{}]", word, rest);
@@ -29,9 +29,8 @@ pub(crate) fn try_process_input() -> anyhow::Result<()> {
 
 		"lua_openscript_menu" => match std::fs::read_to_string( Path::new( rest ) ) {
 			Err(why) => error!("Errored on lua_openscript. [{}]", why),
-			Ok(contents) => match runLua( REALM_MENU, contents ) {
-				Err(why) => error!("Errored on lua_openscript. {}", why),
-				_ => ()
+			Ok(contents) => if let Err(why) = runLua( REALM_MENU, contents ) {
+				error!("Errored on lua_openscript. {}", why);
 			}
 		},
 

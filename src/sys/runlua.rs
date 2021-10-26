@@ -9,7 +9,6 @@ use crate::{
 
 use rglua::{globals::Lua::{self, GLOBALSINDEX}, lua_shared::*, rstring, types::LuaState};
 
-const LUA_REGISTRYINDEX: i32 = -10000;
 const NO_LUA_STATE: &str = "Didn't run lua code, lua state is not valid/loaded!";
 const INVALID_LOG_LEVEL: *const i8 = "Invalid log level (Should be 1-5, 1 being Error, 5 being Trace)\0".as_ptr() as *const i8;
 
@@ -25,7 +24,7 @@ pub fn runLua(realm: Realm, code: String) -> Result<(), &'static str>{
 		},
 		REALM_CLIENT => {
 			let s = getClientState();
-			if s == std::ptr::null_mut() { return Err("Client state has not been loaded. Join a server!"); }
+			if s.is_null() { return Err("Client state has not been loaded. Join a server!"); }
 			s
 		}
 	};
@@ -62,8 +61,9 @@ extern "C" fn sautorun_require(state: LuaState) -> i32 {
 
 	let raw_path = luaL_checklstring(state, 1, 0);
 
-	// Lua 5.4 style loading rather than package.loaded
-	lua_getfield( state, LUA_REGISTRYINDEX, "_LOADED\0".as_ptr() as *const i8 );
+	lua_getfield(state, rglua::globals::Lua::GLOBALSINDEX, "sautorun\0".as_ptr() as *const i8 );
+	lua_getfield( state, rglua::globals::Lua::GLOBALSINDEX, "package\0".as_ptr() as *const i8 );
+	lua_getfield( state, rglua::globals::Lua::GLOBALSINDEX, "loaded\0".as_ptr() as *const i8 );
 	lua_getfield( state, 2, raw_path );
 	if lua_toboolean(state, -1) != 0 {
 		return 1;
@@ -81,14 +81,10 @@ extern "C" fn sautorun_require(state: LuaState) -> i32 {
 			let mut script = String::new();
 			if let Err(why) = handle.read_to_string(&mut script) {
 				error!( "Failed to read script from file [{}]. Reason: {}", path.display(), why );
-			} else {
-				if let Err(why) = util::lua_dostring(state, &script) {
-					error!("Error when requiring [{}]. [{}]", path.display(), why);
-				} else {
-					if lua_type(state, -1) == Lua::Type::Nil as i32 {
-						println!("nil");
-					}
-				}
+			} else if let Err(why) = util::lua_dostring(state, &script) {
+				error!("Error when requiring [{}]. [{}]", path.display(), why);
+			} else if lua_type(state, -1) == Lua::Type::Nil as i32 {
+				println!("nil");
 			}
 		}
 	}
@@ -100,7 +96,7 @@ extern "C" fn sautorun_require(state: LuaState) -> i32 {
 pub fn runLuaEnv(script: &str, identifier: *const i8, dumped_script: *const i8, ip: &str, startup: bool) -> Result<i32, String> {
 	let state = getClientState();
 
-	if state == std::ptr::null_mut() {
+	if state.is_null() {
 		return Err( NO_LUA_STATE.to_owned() );
 	}
 
@@ -133,10 +129,11 @@ pub fn runLuaEnv(script: &str, identifier: *const i8, dumped_script: *const i8, 
 		lua_pushcfunction( state, log );
 		lua_setfield( state, -2, "log\0".as_ptr() as *const i8 );
 
-		lua_createtable( state, 0, 0 ); // local t = {}
+		/*lua_createtable( state, 0, 0 ); // local t = {}
 			lua_createtable( state, 0, 0 ); // local t2 = {}
 			lua_setfield( state, -2, "loaded\0".as_ptr() as *const i8 ); // package.loaded = t2
-		lua_setfield( state, -2, "packages\0".as_ptr() as *const i8 ); // package = t
+		lua_setfield( state, -2, "package\0".as_ptr() as *const i8 ); // package = t
+		*/
 
 		lua_pushcfunction( state, sautorun_require );
 		lua_setfield( state, -2, "require\0".as_ptr() as *const i8 );

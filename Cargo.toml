@@ -2,12 +2,15 @@
 name = "autorun"
 version = "0.5.1"
 authors = ["Vurv78 <Vurv78@users.noreply.github.com>"]
-edition = "2018"
+edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [lib]
 crate-type = ["dylib"]
+
+[profile.dev]
+debug = 0
 
 [dependencies]
 rglua = { git = "https://github.com/Vurv78/rglua" }
@@ -20,11 +23,11 @@ atomic = "0.5.0"
 
 # Misc
 home = "0.5.3"
-anyhow = "1.0.42"
+anyhow = "1.0.44"
 
 # Logging
 chrono = "0.4.19"
 log = "0.4.14"
-simplelog = "0.10.0"
+simplelog = "0.10.2"
 
 regex = "1.5.4"

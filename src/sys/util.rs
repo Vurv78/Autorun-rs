@@ -115,7 +115,7 @@ const REPL: &str = "_";
 
 // Returns a string that is safe to use as a file path
 pub fn sanitizePath<T: AsRef<str>>(input: T) -> String  {
-	let path = ILLEGAL.replace_all(&input.as_ref(), REPL);
+	let path = ILLEGAL.replace_all(input.as_ref(), REPL);
 	let path = CONTROL_RESERVED.replace_all(&path, REPL);
 	let path = RESERVED.replace_all(&path, REPL);
 	let path = WINDOWS_RESERVED.replace_all(&path, REPL);

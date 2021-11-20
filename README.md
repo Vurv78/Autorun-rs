@@ -34,8 +34,8 @@ See an example project using the scripthook [here](https://github.com/Vurv78/Saf
 
 ```ruby
 C:\Users\<User>\sautorun-rs
-├── \autorun.lua # Runs for every script except if hook.lua just ran
-├── \hook.lua # Runs *once* before autorun
+├── \autorun.lua # Runs *once* before autorun
+├── \hook.lua # Runs for every script (including init.lua, which triggers autorun.lua)
 ├── \lua_dumps\ # Each server gets it's own folder named by its IP
 │   ├── \192.168.1.1\
 │   ├── \192.168.1.2\

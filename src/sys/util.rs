@@ -12,7 +12,7 @@ use rglua::{
 
 const LUA_OK: i32 = 0;
 
-use crate::detours::luaL_loadbufferx_h;
+use crate::detours::LUAL_LOADBUFFERX_H;
 use crate::sys::{
 	statics::*
 };
@@ -64,22 +64,23 @@ pub fn getAutorunHandle(garry_dir: &str, server_ip: &str) -> Option<File> {
 pub fn initMenuState(state: LuaState) -> Result<(), detour::Error> {
 	use rglua::lua_shared::*;
 	use std::sync::atomic::AtomicPtr;
-	use crate::detours::{joinserver_h, joinserver};
+	use crate::detours::{JOINSERVER_H, joinserver};
 
-	MENU_STATE
-		.set( AtomicPtr::from(state) )
-		.expect("MENU_STATE was occupied in gmod13_open. Shouldn't happen.");
+	if MENU_STATE.set( AtomicPtr::from(state) ).is_err() {
+		error!("MENU_STATE was occupied in gmod13_open. Shouldn't happen.");
+	}
 
-	info!("Init menu state");
+	info!("Loaded into menu state.");
 
 	lua_getglobal( state, "JoinServer\0".as_ptr() as *const i8 );
 	let joinserver_fn = lua_tocfunction(state, -1);
 	lua_pop(state, 1);
 
 	unsafe {
-		joinserver_h
-			.initialize(joinserver_fn, joinserver)?
-			.enable()?;
+		let hook = detour::GenericDetour::new(joinserver_fn, joinserver)?;
+		JOINSERVER_H
+			.set(hook).unwrap();
+		JOINSERVER_H.get().unwrap().enable().unwrap();
 	}
 
 	Ok(())
@@ -127,7 +128,7 @@ pub fn sanitizePath<T: AsRef<str>>(input: T) -> String  {
 
 
 pub fn lua_compilestring(state: LuaState, code: &str) -> Result<(), &'static str> {
-	if luaL_loadbufferx_h.call(
+	if LUAL_LOADBUFFERX_H.call(
 		state,
 		code.as_ptr() as *const i8,
 		code.len(),

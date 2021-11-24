@@ -62,7 +62,11 @@ This file runs before every single lua script run on your client from addons and
 local script = sautorun.CODE
 if script:find("while true do end") then
 	sautorun.log("Found an evil script!")
-	return true -- Exit from here & don't run the script
+	-- Run our modified script that will replace all ``while true do end`` with ``while false do end``. 😎
+
+	return string.Replace(script, "while true do end", "while false do end")
+
+	-- OR: return true to not run the script at all.
 end
 ```
 __autorun.lua__  
@@ -73,10 +77,12 @@ sautorun.log( "Connected to server " .. sautorun.IP, DEBUG )
 ```
 
 ## Logging
-Autorun automatically writes logs to a log file whenever you boot up a game for your security and for easy debugging.  
-Check the sautorun-rs/logs directory for crash dumps & logs if you use something like [Safety](https://github.com/Vurv78/Safety) to log HTTP requests, etc.
+Autorun features logging under the ``logging`` feature. You need to build it yourself to enable this.  
+It will be re-enabled in the future when it is fixed.
+
+> Autorun automatically writes logs to a log file whenever you boot up a game for your security and for easy debugging.
+> Check the sautorun-rs/logs directory for crash dumps & logs if you use something like [Safety](https://github.com/Vurv78/Safety) to log HTTP requests, etc.
 
 ## Building
 1. [Setup Rust & Cargo](https://www.rust-lang.org/learn/get-started)
 2. Use ``build_win_32.bat`` or ``build_win_64.bat``.  
-**This requires Nightly** (in order to use ``thiscall`` and ``static_detour!``)  

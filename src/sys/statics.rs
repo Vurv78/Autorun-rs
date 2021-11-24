@@ -9,6 +9,7 @@ use rglua::types::*;
 // ---------------- Configs ---------------- //
 pub static HOME_DIR: Lazy<PathBuf> = Lazy::new(|| home::home_dir().expect("Couldn't get your home directory!") );
 pub static SAUTORUN_DIR: Lazy<PathBuf> = Lazy::new(|| HOME_DIR.join("sautorun-rs") );
+#[cfg(feature = "logging")]
 pub static SAUTORUN_LOG_DIR: Lazy<PathBuf> = Lazy::new(|| SAUTORUN_DIR.join("logs") );
 pub static SAUTORUN_SCRIPT_DIR: Lazy<PathBuf> = Lazy::new(|| SAUTORUN_DIR.join("scripts") );
 

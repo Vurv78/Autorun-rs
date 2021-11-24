@@ -1,10 +1,10 @@
-use simplelog::*;
-
-use chrono::prelude::*;
-use std::fs::File;
-use crate::sys::statics::SAUTORUN_LOG_DIR;
-
+#[cfg(feature = "logging")]
 pub fn init() -> anyhow::Result<()> {
+	use chrono::prelude::*;
+	use std::fs::File;
+	use crate::sys::statics::SAUTORUN_LOG_DIR;
+	use simplelog::*;
+
 	if !SAUTORUN_LOG_DIR.exists() {
 		std::fs::create_dir_all(&*SAUTORUN_LOG_DIR)?;
 	}
@@ -35,5 +35,53 @@ pub fn init() -> anyhow::Result<()> {
 		]
 	)?;
 
+	Ok(())
+}
+
+// Stderr
+#[cfg(not(feature = "logging"))]
+macro_rules! warn {
+	($($arg:tt)*) => {
+		eprintln!( $($arg)* )
+	};
+}
+
+// Will never print (unless logging is enabled)
+#[cfg(not(feature = "logging"))]
+macro_rules! trace {
+	($($arg:tt)*) => { () };
+}
+
+// Regular stdout
+#[cfg(not(feature = "logging"))]
+macro_rules! info {
+	($($arg:tt)*) => {
+		println!( $($arg)* )
+	};
+}
+
+// Only prints when in a debug build.
+#[cfg(all(not(feature = "logging"), debug_assertions))]
+macro_rules! debug {
+	($($arg:tt)*) => {
+		println!( $($arg)* )
+	};
+}
+
+// We are in a release build, don't print anything.
+#[cfg(all(not(feature = "logging"), not(debug_assertions)))]
+macro_rules! debug {
+	($($arg:tt)*) => { () };
+}
+
+// Print to stderr
+#[cfg(not(feature = "logging"))]
+macro_rules! error {
+	($($arg:tt)*) => {
+		eprintln!( $($arg)* )
+	};
+}
+
+pub fn init() -> anyhow::Result<()> {
 	Ok(())
 }

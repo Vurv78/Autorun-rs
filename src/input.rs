@@ -9,8 +9,6 @@ pub(crate) fn try_process_input() -> anyhow::Result<()> {
 	let (word, rest) = buffer.split_once(' ').unwrap_or( (buffer.trim_end(), "") );
 	let rest_trim = rest.trim_end();
 
-	debug!("Command used: [{}], rest [{}]", word, rest);
-
 	match word {
 		"lua_run_cl" => if let Err(why) = runLua(REALM_CLIENT, rest.to_owned()) {
 			error!("{}", why);

@@ -39,7 +39,7 @@ pub fn runLua(realm: Realm, code: String) -> Result<(), &'static str>{
 
 extern "C" fn log(state: LuaState) -> i32 {
 	let s = luaL_checklstring(state, 1, 0);
-	let level = luaL_optinteger(state, 2, simplelog::Level::Info as isize);
+	let level = luaL_optinteger(state, 2, 3); // INFO by default
 
 	let str = rstring!(s);
 	match level {

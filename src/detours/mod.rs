@@ -1,41 +1,50 @@
 use std::{fs, io::prelude::*, sync::atomic::Ordering};
 
 use crate::sys::{
-	util::{self, getAutorunHandle, getClientState, setClientState},
+	util::{getAutorunHandle, setClientState},
 	runlua::runLuaEnv, statics::*
 };
 
 use rglua::{
 	lua_shared::{self, *},
 	types::*,
-	rstring,
-	interface::IPanel
+	rstring
 };
-
-use detour::static_detour;
 
 const LUA_BOOL: i32 = rglua::globals::Lua::Type::Bool as i32;
 const LUA_STRING: i32 = rglua::globals::Lua::Type::String as i32;
 
-static_detour! {
-	pub static luaL_newstate_h: extern "C" fn() -> LuaState;
-	pub static luaL_loadbufferx_h: extern "C" fn(LuaState, *const i8, SizeT, *const i8, *const i8) -> CInt;
-	pub static joinserver_h: extern "C" fn(LuaState) -> CInt;
-	pub static paint_traverse_h: extern "thiscall" fn(&'static IPanel, usize, bool, bool);
+#[macro_use]
+pub mod lazy;
+
+// Make our own static detours because detours.rs is lame and locked theirs behind nightly. :)
+lazy_detour! {
+	pub static LUAL_NEWSTATE_H: extern "C" fn() -> LuaState = (*lua_shared::luaL_newstate, luaL_newstate);
+	pub static LUAL_LOADBUFFERX_H: extern "C" fn(LuaState, *const i8, SizeT, *const i8, *const i8) -> CInt = (*lua_shared::luaL_loadbufferx, luaL_loadbufferx);
+	pub static JOINSERVER_H: extern "C" fn(LuaState) -> CInt;
 }
 
-fn luaL_newstate() -> LuaState {
-	let state = luaL_newstate_h.call();
+#[cfg(feature = "runner")]
+use rglua::interface::IPanel;
+
+#[cfg(feature = "runner")]
+lazy_detour! {
+	static PAINT_TRAVERSE_H: extern "fastcall" fn(&'static IPanel, usize, bool, bool);
+}
+
+extern "C" fn luaL_newstate() -> LuaState {
+	let state = LUAL_NEWSTATE_H.call();
 	debug!("Got client state through luaL_newstate");
 	setClientState(state);
 	state
 }
 
-fn luaL_loadbufferx(state: LuaState, mut code: *const i8, mut size: SizeT, identifier: *const i8, mode: *const i8) -> CInt {
+extern "C" fn luaL_loadbufferx(state: LuaState, mut code: *const i8, mut size: SizeT, identifier: *const i8, mode: *const i8) -> CInt {
 	use crate::sys::util::initMenuState;
 	if MENU_STATE.get().is_none() {
-		initMenuState(state)
-			.expect("Couldn't initialize menu state");
+		if let Err(why) = initMenuState(state) {
+			error!("Couldn't initialize menu state. {}", why);
+		}
 	}
 
 	// Todo: Check if you're in menu state (Not by checking MENU_DLL because that can be modified by lua) and if so, don't dump files.
@@ -44,18 +53,16 @@ fn luaL_loadbufferx(state: LuaState, mut code: *const i8, mut size: SizeT, ident
 	let server_ip = CURRENT_SERVER_IP.load( Ordering::Relaxed );
 
 	let mut do_run = true;
-	if raw_path == "lua/includes/init.lua" {
-		if HAS_AUTORAN.compare_exchange(false, true, Ordering::Relaxed, Ordering::Relaxed).is_ok() {
-			// This will only run once when HAS_AUTORAN is false, setting it to true.
-			// Will be reset by JoinServer.
-			if let Ok(script) = fs::read_to_string(&*AUTORUN_SCRIPT_PATH) {
-				// Try to run here
-				if let Err(why) = runLuaEnv(&script, identifier, code, server_ip, true) {
-					error!("{}", why);
-				}
-			} else {
-				error!( "Couldn't read your autorun script file at {}/{}", SAUTORUN_DIR.display(), AUTORUN_SCRIPT_PATH.display() );
+	if raw_path == "lua/includes/init.lua" && HAS_AUTORAN.compare_exchange(false, true, Ordering::Relaxed, Ordering::Relaxed).is_ok() {
+		// This will only run once when HAS_AUTORAN is false, setting it to true.
+		// Will be reset by JoinServer.
+		if let Ok(script) = fs::read_to_string(&*AUTORUN_SCRIPT_PATH) {
+			// Try to run here
+			if let Err(why) = runLuaEnv(&script, identifier, code, server_ip, true) {
+				error!("{}", why);
 			}
+		} else {
+			error!( "Couldn't read your autorun script file at [{}]", AUTORUN_SCRIPT_PATH.display() );
 		}
 	}
 
@@ -91,31 +98,34 @@ fn luaL_loadbufferx(state: LuaState, mut code: *const i8, mut size: SizeT, ident
 
 	if do_run {
 		// Call the original function and return the value.
-		return luaL_loadbufferx_h.call( state, code, size, identifier, mode );
+		return LUAL_LOADBUFFERX_H.call( state, code, size, identifier, mode );
 	}
 	0
 }
 
 // Since the first lua state will always be the menu state, just keep a variable for whether joinserver has been hooked or not,
 // If not, then hook it.
-pub fn joinserver(state: LuaState) -> CInt {
-	let ip = rstring!( lua_tolstring(state, 1, 0) );
+pub extern "C" fn joinserver(state: LuaState) -> CInt {
+	let ip = rstring!(lua_tolstring(state, 1, 0));
 	info!("Joining Server with IP {}!", ip);
 
 	CURRENT_SERVER_IP.store(ip, Ordering::Relaxed); // Set the IP so we know where to write files in loadbufferx.
 	HAS_AUTORAN.store(false, Ordering::Relaxed);
 
-	joinserver_h.call(state)
+	JOINSERVER_H.get().unwrap().call(state)
 }
 
-fn paint_traverse(this: &'static IPanel, panel_id: usize, force_repaint: bool, force_allow: bool) {
-	paint_traverse_h.call(this, panel_id, force_repaint, force_allow);
+#[cfg(feature = "runner")]
+extern "fastcall" fn paint_traverse(this: &'static IPanel, panel_id: usize, force_repaint: bool, force_allow: bool) {
+	use crate::sys::util::{self, getClientState};
+
+	PAINT_TRAVERSE_H.get().unwrap().call(this, panel_id, force_repaint, force_allow);
 
 	let script_queue = &mut *LUA_SCRIPTS
 		.lock()
 		.unwrap();
 
-	if script_queue.len() > 0 {
+	if !script_queue.is_empty() {
 		let (realm, script) = script_queue.remove(0);
 
 		let state = match realm {
@@ -123,28 +133,21 @@ fn paint_traverse(this: &'static IPanel, panel_id: usize, force_repaint: bool, f
 			REALM_CLIENT => getClientState()
 		};
 
-		if state == std::ptr::null_mut() { return; }
+		if state.is_null() { return; }
 
 		match util::lua_dostring(state, &script) {
 			Err(why) => {
 				error!("{}", why);
 			},
 			Ok(_) => {
-				info!("Code [#{}] ran successfully.", script.len())
+				info!("Script of len #{} ran successfully.", script.len())
 			}
 		}
 	}
 }
 
-pub unsafe fn init() -> Result<(), detour::Error> {
-	luaL_loadbufferx_h
-		.initialize(*lua_shared::luaL_loadbufferx, luaL_loadbufferx)?
-		.enable()?;
-
-	luaL_newstate_h
-		.initialize(*lua_shared::luaL_newstate, luaL_newstate)?
-		.enable()?;
-
+#[cfg(feature = "runner")]
+unsafe fn init_paint_traverse() -> Result<(), detour::Error> {
 	use rglua::interface::*;
 
 	let vgui_interface = get_from_interface( "VGUI_Panel009", get_interface_handle("vgui2.dll").unwrap() )
@@ -152,7 +155,7 @@ pub unsafe fn init() -> Result<(), detour::Error> {
 
 	let panel_interface = vgui_interface.as_ref().unwrap();
 
-	type PaintTraverseFn = extern "thiscall" fn(&'static IPanel, usize, bool, bool);
+	type PaintTraverseFn = extern "fastcall" fn(&'static IPanel, usize, bool, bool);
 	// Get painttraverse raw function object to detour.
 	let painttraverse: PaintTraverseFn = std::mem::transmute(
 		(panel_interface.vtable as *mut *mut CVoid)
@@ -160,18 +163,33 @@ pub unsafe fn init() -> Result<(), detour::Error> {
 			.read()
 	);
 
-	paint_traverse_h
-		.initialize( painttraverse, paint_traverse )?
-		.enable()?;
+	let detour = detour::GenericDetour::new(painttraverse, paint_traverse)?;
+
+	PAINT_TRAVERSE_H.set(detour);
+	PAINT_TRAVERSE_H.get().unwrap().enable()?;
+
+	Ok(())
+}
+
+pub unsafe fn init() -> Result<(), detour::Error> {
+	use once_cell::sync::Lazy;
+
+	Lazy::force(&LUAL_LOADBUFFERX_H);
+	Lazy::force(&LUAL_NEWSTATE_H);
+
+	#[cfg(feature = "runner")]
+	init_paint_traverse()?;
 
 	Ok(())
 }
 
 pub unsafe fn cleanup() -> Result<(), detour::Error>{
-	luaL_loadbufferx_h.disable()?;
-	luaL_newstate_h.disable()?;
-	joinserver_h.disable()?;
-	paint_traverse_h.disable()?;
+	LUAL_LOADBUFFERX_H.disable()?;
+	LUAL_NEWSTATE_H.disable()?;
+	JOINSERVER_H.get().unwrap().disable()?;
+
+	#[cfg(feature = "runner")]
+	PAINT_TRAVERSE_H.get().unwrap().disable()?;
 
 	Ok(())
 }

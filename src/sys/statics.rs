@@ -9,6 +9,7 @@ use rglua::types::*;
 // ---------------- Configs ---------------- //
 pub static HOME_DIR: Lazy<PathBuf> = Lazy::new(|| home::home_dir().expect("Couldn't get your home directory!") );
 pub static SAUTORUN_DIR: Lazy<PathBuf> = Lazy::new(|| HOME_DIR.join("sautorun-rs") );
+#[cfg(feature = "logging")]
 pub static SAUTORUN_LOG_DIR: Lazy<PathBuf> = Lazy::new(|| SAUTORUN_DIR.join("logs") );
 pub static SAUTORUN_SCRIPT_DIR: Lazy<PathBuf> = Lazy::new(|| SAUTORUN_DIR.join("scripts") );
 
@@ -29,8 +30,9 @@ pub static CURRENT_SERVER_IP: Atomic<&'static str>                 = Atomic::new
 pub static HAS_AUTORAN: AtomicBool                                 = AtomicBool::new(false); // Whether an autorun script has been run and detected already.
 pub static MENU_STATE: OnceCell<AtomicPtr<CVoid>>                  = OnceCell::new();
 
+type LuaScript = Vec<(bool, String)>;
 // Scripts waiting to be ran in painttraverse
-pub static LUA_SCRIPTS: Lazy<Arc<Mutex<Vec< (bool, String) >>>> = Lazy::new(|| {
+pub static LUA_SCRIPTS: Lazy<Arc<Mutex<LuaScript>>> = Lazy::new(|| {
 	Arc::new( Mutex::new( Vec::new() ) )
 });
 

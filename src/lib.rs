@@ -1,9 +1,11 @@
 #![allow(non_snake_case)]
 
 use std::{sync::mpsc, thread};
+use thiserror::Error;
 
 #[cfg(feature = "logging")]
-#[macro_use] extern crate log;
+#[macro_use]
+extern crate log;
 
 #[cfg(feature = "logging")]
 extern crate simplelog;
@@ -13,11 +15,11 @@ mod logging;
 
 use once_cell::sync::OnceCell;
 
-mod input; // Console input
-mod sys;   // Configs
 mod detours;
+mod input; // Console input
+mod sys; // Configs
 
-static SENDER: OnceCell< mpsc::SyncSender<()> > = OnceCell::new();
+static SENDER: OnceCell<mpsc::SyncSender<()>> = OnceCell::new();
 const DLL_PROCESS_ATTACH: u32 = 1;
 const DLL_PROCESS_DETACH: u32 = 0;
 
@@ -27,15 +29,28 @@ extern "system" {
 	fn GetLastError() -> u32;
 }
 
-fn init() -> anyhow::Result<()> {
-	logging::init()?;
+#[derive(Error, Debug)]
+enum InitializeError {
+	#[error("Failed to create thread channel")]
+	MPSCFailure,
+	#[error("{0}")]
+	LogInitError(#[from] logging::LogInitError),
+	#[error("Failed to initialize detours")]
+	DetoursInitError(#[from] detour::Error),
+}
 
+#[derive(Error, Debug)]
+enum ExitError {
+	#[error("Failed to send exit signal to thread")]
+	MPSCFailure,
+	#[error("Failed to initialize detours")]
+	DetoursInitError(#[from] detour::Error),
+}
+
+fn init() -> Result<(), InitializeError> {
 	unsafe {
-		if !AllocConsole() {
-			// Assume a console already exists and just log an error.
-			error!("Failed to allocate console. {}", GetLastError());
-		}
-
+		println!("Init!");
+		logging::init()?;
 		detours::init()?;
 	}
 
@@ -53,22 +68,23 @@ fn init() -> anyhow::Result<()> {
 		}
 		match receiver.try_recv() {
 			Ok(_) | Err(Disconnected) => break,
-			Err(Empty) => ()
+			Err(Empty) => (),
 		}
 	});
 
-	if SENDER.set(sender).is_err() {
-		anyhow::bail!("Failed to set sender.");
-	}
+	// Literally impossible for it to be full. But whatever
+	SENDER
+		.set(sender)
+		.map_err(|_| InitializeError::MPSCFailure)?;
 
 	Ok(())
 }
 
-fn cleanup() -> anyhow::Result<()> {
+fn cleanup() -> Result<(), ExitError> {
 	unsafe { detours::cleanup()? };
 
 	if let Some(sender) = SENDER.get() {
-		sender.send(())?;
+		sender.send(()).map_err(|_| ExitError::MPSCFailure)?;
 	}
 
 	unsafe {
@@ -80,19 +96,26 @@ fn cleanup() -> anyhow::Result<()> {
 
 // Windows Only. I'm not going to half-ass Linux support (And don't even get me to try and work with OSX..)
 #[no_mangle]
-pub extern "system" fn DllMain(_: *const u8, reason: u32, _: *const u8) -> u32 {
+extern "system" fn DllMain(_: *const u8, reason: u32, _: *const u8) -> u32 {
 	match reason {
 		DLL_PROCESS_ATTACH => {
+			unsafe {
+				if !AllocConsole() {
+					// Assume a console already exists and just log an error.
+					eprintln!("Failed to allocate console. {}", GetLastError());
+				}
+			}
+
 			if let Err(why) = init() {
 				error!("Failed to inject Autorun. [{}]", why);
 			}
-		},
+		}
 		DLL_PROCESS_DETACH => {
 			if let Err(why) = cleanup() {
 				error!("Failed to inject Autorun. [{}]", why);
 			}
-		},
-		_ => ()
+		}
+		_ => (),
 	}
 	1
 }
@@ -100,21 +123,28 @@ pub extern "system" fn DllMain(_: *const u8, reason: u32, _: *const u8) -> u32 {
 use rglua::types::LuaState;
 
 #[no_mangle]
-pub extern "C" fn gmod13_open(state: LuaState) -> i32 {
+extern "C" fn gmod13_open(state: LuaState) -> i32 {
 	use crate::sys::util::initMenuState;
-	if let Err(why) = init() {
-		error!("Failed to open Autorun module. [{}]", why);
-		return 0;
+	unsafe {
+		if !AllocConsole() {
+			// Assume a console already exists and just log an error.
+			eprintln!("Failed to allocate console. {}", GetLastError());
+		}
 	}
 
-	if let Err(why) = initMenuState(state) {
-		error!("Couldn't initialize menu state! [{}]", why);
+	if let Err(why) = init() {
+		match why {
+			InitializeError::LogInitError(y) => eprintln!("Failed to initialize logging. [{}]", y),
+			_ => error!("Failed to initialize Autorun. [{}]", why),
+		}
+	} else if let Err(why) = initMenuState(state) {
+		error!("Failed to initialize menu state. [{}]", why);
 	}
 	0
 }
 
 #[no_mangle]
-pub extern "C" fn gmod13_close(_state: LuaState) -> i32 {
+extern "C" fn gmod13_close(_state: LuaState) -> i32 {
 	if let Err(why) = cleanup() {
 		error!("Failed to close Autorun module. [{}]", why);
 	}

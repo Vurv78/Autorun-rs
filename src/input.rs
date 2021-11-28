@@ -1,34 +1,42 @@
-use std::path::Path;
 use crate::sys::{runlua::runLua, statics::*};
+use std::path::Path;
 
-pub(crate) fn try_process_input() -> anyhow::Result<()> {
+pub(crate) fn try_process_input() -> std::io::Result<()> {
 	// Loop forever in this thread, since it is separate from Gmod, and take in user input.
 	let mut buffer = String::new();
 
 	std::io::stdin().read_line(&mut buffer)?;
-	let (word, rest) = buffer.split_once(' ').unwrap_or( (buffer.trim_end(), "") );
+	let (word, rest) = buffer.split_once(' ').unwrap_or((buffer.trim_end(), ""));
 	let rest_trim = rest.trim_end();
 
 	match word {
-		"lua_run_cl" => if let Err(why) = runLua(REALM_CLIENT, rest.to_owned()) {
-			error!("{}", why);
-			// We don't know if it was successful yet. The code will run later in painttraverse and print there.
-		},
-		"lua_openscript_cl" => match std::fs::read_to_string( Path::new(rest_trim) ) {
-			Err(why) => error!("Errored on lua_openscript. [{}]", why),
-			Ok(contents) => if let Err(why) = runLua( REALM_CLIENT, contents ) {
+		"lua_run_cl" => {
+			if let Err(why) = runLua(REALM_CLIENT, rest.to_owned()) {
 				error!("{}", why);
+				// We don't know if it was successful yet. The code will run later in painttraverse and print there.
+			}
+		}
+		"lua_openscript_cl" => match std::fs::read_to_string(Path::new(rest_trim)) {
+			Err(why) => error!("Errored on lua_openscript. [{}]", why),
+			Ok(contents) => {
+				if let Err(why) = runLua(REALM_CLIENT, contents) {
+					error!("{}", why);
+				}
 			}
 		},
 
-		"lua_run_menu" => if let Err(why) = runLua(REALM_MENU, rest.to_owned()) {
-			error!("{}", why);
-		},
+		"lua_run_menu" => {
+			if let Err(why) = runLua(REALM_MENU, rest.to_owned()) {
+				error!("{}", why);
+			}
+		}
 
-		"lua_openscript_menu" => match std::fs::read_to_string( Path::new( rest ) ) {
+		"lua_openscript_menu" => match std::fs::read_to_string(Path::new(rest)) {
 			Err(why) => error!("Errored on lua_openscript. [{}]", why),
-			Ok(contents) => if let Err(why) = runLua( REALM_MENU, contents ) {
-				error!("Errored on lua_openscript. {}", why);
+			Ok(contents) => {
+				if let Err(why) = runLua(REALM_MENU, contents) {
+					error!("Errored on lua_openscript. {}", why);
+				}
 			}
 		},
 
@@ -42,7 +50,7 @@ pub(crate) fn try_process_input() -> anyhow::Result<()> {
 
 			println!("help                         | Prints this out.");
 		}
-		_ => ()
+		_ => (),
 	}
 
 	Ok(())

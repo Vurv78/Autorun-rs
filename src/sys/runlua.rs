@@ -6,6 +6,7 @@ use crate::sys::{
 use std::ffi::CString;
 
 use rglua::{
+	cstr,
 	globals::Lua::{self, GLOBALSINDEX},
 	lua_shared::*,
 	rstr,
@@ -14,7 +15,7 @@ use rglua::{
 
 const NO_LUA_STATE: &str = "Didn't run lua code, lua state is not valid/loaded!";
 const INVALID_LOG_LEVEL: *const i8 =
-	"Invalid log level (Should be 1-5, 1 being Error, 5 being Trace)\0".as_ptr() as *const i8;
+	cstr!("Invalid log level (Should be 1-5, 1 being Error, 5 being Trace)");
 
 pub fn runLua(realm: Realm, code: String) -> Result<(), &'static str> {
 	// Check if lua state is valid for instant feedback
@@ -69,21 +70,9 @@ extern "C" fn sautorun_require(state: LuaState) -> i32 {
 
 	let raw_path = luaL_checklstring(state, 1, 0);
 
-	lua_getfield(
-		state,
-		rglua::globals::Lua::GLOBALSINDEX,
-		"sautorun\0".as_ptr() as *const i8,
-	);
-	lua_getfield(
-		state,
-		rglua::globals::Lua::GLOBALSINDEX,
-		"package\0".as_ptr() as *const i8,
-	);
-	lua_getfield(
-		state,
-		rglua::globals::Lua::GLOBALSINDEX,
-		"loaded\0".as_ptr() as *const i8,
-	);
+	lua_getfield(state, rglua::globals::Lua::GLOBALSINDEX, cstr!("sautorun"));
+	lua_getfield(state, rglua::globals::Lua::GLOBALSINDEX, cstr!("package"));
+	lua_getfield(state, rglua::globals::Lua::GLOBALSINDEX, cstr!("loaded"));
 	lua_getfield(state, 2, raw_path);
 	if lua_toboolean(state, -1) != 0 {
 		return 1;
@@ -144,39 +133,39 @@ pub fn runLuaEnv(
 	lua_createtable(state, 0, 0); // local t2 = {}
 
 	lua_pushstring(state, identifier);
-	lua_setfield(state, -2, "NAME\0".as_ptr() as *const i8); // t2.NAME = ...
+	lua_setfield(state, -2, cstr!("NAME")); // t2.NAME = ...
 
 	lua_pushstring(state, dumped_script);
-	lua_setfield(state, -2, "CODE\0".as_ptr() as *const i8); // t2.CODE = ...
+	lua_setfield(state, -2, cstr!("CODE")); // t2.CODE = ...
 
 	if let Ok(ip) = CString::new(ip) {
 		lua_pushstring(state, ip.as_ptr());
 	} else {
 		lua_pushnil(state);
 	}
-	lua_setfield(state, -2, "IP\0".as_ptr() as *const i8);
+	lua_setfield(state, -2, cstr!("IP"));
 
 	// If this is running before autorun, set SAUTORUN.STARTUP to true.
 	lua_pushboolean(state, startup as i32);
-	lua_setfield(state, -2, "STARTUP\0".as_ptr() as *const i8);
+	lua_setfield(state, -2, cstr!("STARTUP"));
 
 	lua_pushcfunction(state, log);
-	lua_setfield(state, -2, "log\0".as_ptr() as *const i8);
+	lua_setfield(state, -2, cstr!("log"));
 
 	/*lua_createtable( state, 0, 0 ); // local t = {}
 		lua_createtable( state, 0, 0 ); // local t2 = {}
-		lua_setfield( state, -2, "loaded\0".as_ptr() as *const i8 ); // package.loaded = t2
-	lua_setfield( state, -2, "package\0".as_ptr() as *const i8 ); // package = t
+		lua_setfield( state, -2, cstr!("loaded") ); // package.loaded = t2
+	lua_setfield( state, -2, cstr!("package") ); // package = t
 	*/
 
 	lua_pushcfunction(state, sautorun_require);
-	lua_setfield(state, -2, "require\0".as_ptr() as *const i8);
+	lua_setfield(state, -2, cstr!("require"));
 
-	lua_setfield(state, -2, "sautorun\0".as_ptr() as *const i8);
+	lua_setfield(state, -2, cstr!("sautorun"));
 
 	lua_createtable(state, 0, 0); // Create a metatable to make the env inherit from _G
 	lua_pushvalue(state, GLOBALSINDEX);
-	lua_setfield(state, -2, "__index\0".as_ptr() as *const i8);
+	lua_setfield(state, -2, cstr!("__index"));
 	lua_setmetatable(state, -2);
 
 	lua_setfenv(state, -2);

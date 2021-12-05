@@ -20,14 +20,15 @@ mod input; // Console input
 mod sys; // Configs
 
 static SENDER: OnceCell<mpsc::SyncSender<()>> = OnceCell::new();
-const DLL_PROCESS_ATTACH: u32 = 1;
-const DLL_PROCESS_DETACH: u32 = 0;
 
-extern "system" {
-	fn AllocConsole() -> bool;
-	fn FreeConsole() -> bool;
-	fn GetLastError() -> u32;
-}
+use winapi::{
+	shared::minwindef::TRUE,
+	um::{
+		consoleapi::AllocConsole,
+		errhandlingapi::GetLastError,
+		wincon::{FreeConsole, GetConsoleWindow},
+	},
+};
 
 #[derive(Error, Debug)]
 enum InitializeError {
@@ -49,7 +50,6 @@ enum ExitError {
 
 fn init() -> Result<(), InitializeError> {
 	unsafe {
-		println!("Init!");
 		logging::init()?;
 		detours::init()?;
 	}
@@ -80,55 +80,17 @@ fn init() -> Result<(), InitializeError> {
 	Ok(())
 }
 
-fn cleanup() -> Result<(), ExitError> {
-	unsafe { detours::cleanup()? };
-
-	if let Some(sender) = SENDER.get() {
-		sender.send(()).map_err(|_| ExitError::MPSCFailure)?;
-	}
-
+// Returns if successfully initialized
+fn attach() -> bool {
 	unsafe {
-		FreeConsole();
-	};
-
-	Ok(())
-}
-
-// Windows Only. I'm not going to half-ass Linux support (And don't even get me to try and work with OSX..)
-#[no_mangle]
-extern "system" fn DllMain(_: *const u8, reason: u32, _: *const u8) -> u32 {
-	match reason {
-		DLL_PROCESS_ATTACH => {
-			unsafe {
-				if !AllocConsole() {
-					// Assume a console already exists and just log an error.
-					eprintln!("Failed to allocate console. {}", GetLastError());
-				}
+		if GetConsoleWindow().is_null() {
+			if AllocConsole() != TRUE {
+				// Console didn't exist and couldn't allocate one now, hard error
+				error!("Failed to allocate console. {}", GetLastError());
+				return false;
 			}
-
-			if let Err(why) = init() {
-				error!("Failed to inject Autorun. [{}]", why);
-			}
-		}
-		DLL_PROCESS_DETACH => {
-			if let Err(why) = cleanup() {
-				error!("Failed to inject Autorun. [{}]", why);
-			}
-		}
-		_ => (),
-	}
-	1
-}
-
-use rglua::types::LuaState;
-
-#[no_mangle]
-extern "C" fn gmod13_open(state: LuaState) -> i32 {
-	use crate::sys::util::initMenuState;
-	unsafe {
-		if !AllocConsole() {
-			// Assume a console already exists and just log an error.
-			eprintln!("Failed to allocate console. {}", GetLastError());
+		} else {
+			debug!("Found existing console!");
 		}
 	}
 
@@ -137,7 +99,59 @@ extern "C" fn gmod13_open(state: LuaState) -> i32 {
 			InitializeError::LogInitError(y) => eprintln!("Failed to initialize logging. [{}]", y),
 			_ => error!("Failed to initialize Autorun. [{}]", why),
 		}
-	} else if let Err(why) = initMenuState(state) {
+		false
+	} else {
+		true
+	}
+}
+
+fn cleanup() {
+	fn try_cleanup() -> Result<(), ExitError> {
+		unsafe { detours::cleanup()? };
+
+		if let Some(sender) = SENDER.get() {
+			sender.send(()).map_err(|_| ExitError::MPSCFailure)?;
+		}
+
+		unsafe {
+			FreeConsole();
+		};
+
+		Ok(())
+	}
+
+	if let Err(why) = try_cleanup() {
+		error!("Failed to inject Autorun. [{}]", why);
+	}
+}
+
+#[no_mangle]
+extern "system" fn DllMain(_: *const u8, reason: u32, _: *const u8) -> u32 {
+	use winapi::um::winnt::{DLL_PROCESS_ATTACH, DLL_PROCESS_DETACH};
+
+	match reason {
+		DLL_PROCESS_ATTACH => {
+			attach();
+		}
+		DLL_PROCESS_DETACH => {
+			cleanup();
+		}
+		_ => (),
+	}
+
+	1
+}
+
+use rglua::types::LuaState;
+
+#[no_mangle]
+extern "C" fn gmod13_open(state: LuaState) -> i32 {
+	// DllMain is called prior to this even if Autorun is used as a binary module.
+	// So only initialize what we haven't already.
+
+	use crate::sys::util::initMenuState;
+
+	if let Err(why) = initMenuState(state) {
 		error!("Failed to initialize menu state. [{}]", why);
 	}
 	0
@@ -145,8 +159,6 @@ extern "C" fn gmod13_open(state: LuaState) -> i32 {
 
 #[no_mangle]
 extern "C" fn gmod13_close(_state: LuaState) -> i32 {
-	if let Err(why) = cleanup() {
-		error!("Failed to close Autorun module. [{}]", why);
-	}
+	cleanup();
 	0
 }

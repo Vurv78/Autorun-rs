@@ -37,7 +37,6 @@ lazy_detour! {
 
 extern "C" fn luaL_newstate() -> LuaState {
 	let state = LUAL_NEWSTATE_H.call();
-	debug!("Got client state through luaL_newstate");
 	setClientState(state);
 	state
 }

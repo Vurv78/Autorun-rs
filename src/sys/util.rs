@@ -4,7 +4,7 @@ use std::{
 	sync::atomic::Ordering,
 };
 
-use rglua::{lua_shared::*, rstr, types::LuaState};
+use rglua::{cstr, lua_shared::*, rstr, types::LuaState};
 
 const LUA_OK: i32 = 0;
 
@@ -72,9 +72,7 @@ pub fn initMenuState(state: LuaState) -> Result<(), detour::Error> {
 		error!("MENU_STATE was occupied in gmod13_open. Shouldn't happen.");
 	}
 
-	info!("Loaded into menu state.");
-
-	lua_getglobal(state, "JoinServer\0".as_ptr() as *const i8);
+	lua_getglobal(state, cstr!("JoinServer"));
 	let joinserver_fn = lua_tocfunction(state, -1);
 	lua_pop(state, 1);
 
@@ -135,8 +133,8 @@ pub fn lua_compilestring(state: LuaState, code: &str) -> Result<(), &'static str
 		state,
 		code.as_ptr() as *const i8,
 		code.len(),
-		"@RunString\0".as_ptr() as *const i8,
-		"bt\0".as_ptr() as *const i8,
+		cstr!("@RunString"),
+		cstr!("bt"),
 	) != LUA_OK
 	{
 		let err = lua_tolstring(state, -1, 0);

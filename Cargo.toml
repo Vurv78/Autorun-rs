@@ -28,7 +28,12 @@ log = { version = "0.4.14", optional = true }
 simplelog = { version = "0.11.0", optional = true }
 
 regex = "1.5.4"
-winapi = { version = "0.3.9", features = ["wincon", "consoleapi"] }
+winapi = { version = "0.3.9", features = ["wincon", "consoleapi", "shellapi"] }
+systrayx = "0.4.1"
+
+indoc = "1.0.3"
+
+# When winsafe matures, maybe winapi can be removed
 
 [features]
 default = ["runner", "logging"]

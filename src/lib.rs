@@ -22,11 +22,17 @@ mod sys; // Configs
 static SENDER: OnceCell<mpsc::SyncSender<()>> = OnceCell::new();
 
 use winapi::{
-	shared::minwindef::TRUE,
+	shared::minwindef::{DWORD, FALSE, TRUE},
 	um::{
-		consoleapi::AllocConsole,
+		consoleapi::{AllocConsole, SetConsoleCtrlHandler},
 		errhandlingapi::GetLastError,
-		wincon::{FreeConsole, GetConsoleWindow},
+		wincon::{
+			FreeConsole, GetConsoleWindow, CTRL_CLOSE_EVENT, CTRL_C_EVENT, CTRL_SHUTDOWN_EVENT,
+		},
+		winuser::{
+			CreateMenu, DeleteMenu, GetSystemMenu, ShowWindow, MF_BYCOMMAND, SC_CLOSE, SW_HIDE,
+			SW_SHOW,
+		},
 	},
 };
 
@@ -54,11 +60,24 @@ fn init() -> Result<(), InitializeError> {
 		detours::init()?;
 	}
 
-	debug!("Initialized.");
-	println!("<---> Autorun-rs <--->");
-	println!("Type [help] for the list of commands");
+	indoc::printdoc! {"
+		[Autorun-rs] v{version}
+		Type 'help' for the list of commands
+	", version = env!("CARGO_PKG_VERSION")};
 
 	let (sender, receiver) = mpsc::sync_channel(1);
+
+	// Disable close button and shortcuts
+	// If you want to hide the console use the ``hide`` command.
+	// Currently no way to halt Autorun w/o closing gmod
+	unsafe {
+		let window = GetConsoleWindow();
+		let menu = GetSystemMenu(window, FALSE);
+
+		DeleteMenu(menu, SC_CLOSE as u32, MF_BYCOMMAND);
+
+		SetConsoleCtrlHandler(None, TRUE);
+	}
 
 	thread::spawn(move || loop {
 		use mpsc::TryRecvError::*;

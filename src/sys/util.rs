@@ -137,7 +137,7 @@ pub fn lua_compilestring(state: LuaState, code: &str) -> Result<(), &'static str
 		cstr!("bt"),
 	) != LUA_OK
 	{
-		let err = lua_tolstring(state, -1, 0);
+		let err = lua_tostring(state, -1);
 		lua_pop(state, 1);
 		return Err(rstr!(err));
 	}
@@ -147,7 +147,7 @@ pub fn lua_compilestring(state: LuaState, code: &str) -> Result<(), &'static str
 
 pub fn lua_pexec(state: LuaState) -> Result<(), &'static str> {
 	if lua_pcall(state, 0, -1, 0) != LUA_OK {
-		let err = lua_tolstring(state, -1, 0);
+		let err = lua_tostring(state, -1);
 		lua_pop(state, 1);
 		return Err(rstr!(err));
 	}

@@ -1,5 +1,5 @@
 use crate::sys::{runlua::runLua, statics::*};
-use std::{path::Path, io::Read};
+use std::path::Path;
 
 pub(crate) fn try_process_input() -> std::io::Result<()> {
 	// Loop forever in this thread, since it is separate from Gmod, and take in user input.
@@ -51,11 +51,8 @@ pub(crate) fn try_process_input() -> std::io::Result<()> {
 			ShowWindow(wind, SW_HIDE);
 
 			let mut tray = systrayx::Application::new().unwrap();
-			tray.set_icon_from_buffer(
-				&include_bytes!("../assets/run.ico")[..],
-				32,
-				32
-			).expect("Failed to set icon");
+			tray.set_icon_from_buffer(&include_bytes!("../assets/run.ico")[..], 32, 32)
+				.expect("Failed to set icon");
 
 			let ptr = AtomicPtr::new(wind);
 

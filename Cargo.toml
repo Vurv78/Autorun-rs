@@ -1,16 +1,15 @@
 [package]
 name = "autorun"
-version = "0.7.0"
+version = "0.7.1"
 authors = ["Vurv78 <Vurv78@users.noreply.github.com>"]
 edition = "2021"
-
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+publish = false
 
 [lib]
 crate-type = ["cdylib"]
 
 [dependencies]
-rglua = "0.5.0"
+rglua = "0.7.1"
 
 detour = { version = "0.8.1", default-features = false }
 

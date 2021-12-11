@@ -22,17 +22,12 @@ mod sys; // Configs
 static SENDER: OnceCell<mpsc::SyncSender<()>> = OnceCell::new();
 
 use winapi::{
-	shared::minwindef::{DWORD, FALSE, TRUE},
+	shared::minwindef::{FALSE, TRUE},
 	um::{
 		consoleapi::{AllocConsole, SetConsoleCtrlHandler},
 		errhandlingapi::GetLastError,
-		wincon::{
-			FreeConsole, GetConsoleWindow, CTRL_CLOSE_EVENT, CTRL_C_EVENT, CTRL_SHUTDOWN_EVENT,
-		},
-		winuser::{
-			CreateMenu, DeleteMenu, GetSystemMenu, ShowWindow, MF_BYCOMMAND, SC_CLOSE, SW_HIDE,
-			SW_SHOW,
-		},
+		wincon::{FreeConsole, GetConsoleWindow},
+		winuser::{DeleteMenu, GetSystemMenu, MF_BYCOMMAND, SC_CLOSE},
 	},
 };
 

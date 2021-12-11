@@ -32,7 +32,7 @@ See an example project using the scripthook [here](https://github.com/Vurv78/Saf
 
 ### File Structure
 
-```ruby
+```golo
 C:\Users\<User>\sautorun-rs
 ├── \autorun.lua # Runs *once* before autorun
 ├── \hook.lua # Runs for every script (including init.lua, which triggers autorun.lua)
@@ -54,6 +54,7 @@ Here are the fields for the ``sautorun`` table that gets passed in scripthook.
 | IP       | string           | IP of the server you are currently connected to                         |
 | STARTUP  | boolean          | Whether the script is running from ``autorun.lua`` (true) or false      |
 | log      | function<string, uint?> | A function that logs to your autorun console. Second param is level ascending with urgency, 1 being error, 2 warning, 3, info, 4 debug, 5 trace. Default 3        |
+| require | function<string> | Works like gmod's include function. Does not cache like regular lua's require for now. Runs a script local to sautorun-rs/scripts and passes the returned values |
 
 ### Examples
 __hook.lua__  

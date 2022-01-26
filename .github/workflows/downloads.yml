@@ -24,7 +24,6 @@ jobs:
         path: target/release/Autorun.dll
 
   buildgui64:
-    buildx64:
     runs-on: windows-latest
     steps:
     - uses: actions/checkout@v2

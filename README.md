@@ -3,7 +3,7 @@
 Garrysmod Lua Dumper & Runner, written in Rust.  
 
 ## Features
-* Dumping all lua scripts to ``C:\Users\<User>\sautorun-rs\lua_dumps\<ServerIP>\..``
+* Dumping all lua scripts to ``C:\Users\<User>\autorun\lua_dumps\<ServerIP>\..``
 * Runtime lua loading through ``lua_run`` and ``lua_openscript`` in an external console
 * Supports both 32 and 64 bit branches
 * Running a script before autorun (``autorun.lua``), to detour and bypass any 'anticheats'
@@ -33,7 +33,7 @@ See an example project using the scripthook [here](https://github.com/Vurv78/Saf
 ### File Structure
 
 ```golo
-C:\Users\<User>\sautorun-rs
+C:\Users\<User>\autorun
 ├── \autorun.lua # Runs *once* before autorun
 ├── \hook.lua # Runs for every script (including init.lua, which triggers autorun.lua)
 ├── \lua_dumps\ # Each server gets it's own folder named by its IP
@@ -54,7 +54,7 @@ Here are the fields for the ``sautorun`` table that gets passed in scripthook.
 | IP       | string           | IP of the server you are currently connected to                         |
 | STARTUP  | boolean          | Whether the script is running from ``autorun.lua`` (true) or false      |
 | log      | function<string, uint?> | A function that logs to your autorun console. Second param is level ascending with urgency, 1 being error, 2 warning, 3, info, 4 debug, 5 trace. Default 3        |
-| require | function<string> | Works like gmod's include function. Does not cache like regular lua's require for now. Runs a script local to sautorun-rs/scripts and passes the returned values |
+| require | function<string> | Works like gmod's include function. Does not cache like regular lua's require for now. Runs a script local to autorun/scripts and passes the returned values |
 
 ### Examples
 __hook.lua__  
@@ -82,7 +82,7 @@ Autorun features logging under the ``logging`` feature. You need to build it you
 It will be re-enabled in the future when it is fixed.
 
 > Autorun automatically writes logs to a log file whenever you boot up a game for your security and for easy debugging.
-> Check the sautorun-rs/logs directory for crash dumps & logs if you use something like [Safety](https://github.com/Vurv78/Safety) to log HTTP requests, etc.
+> Check the autorun/logs directory for crash dumps & logs if you use something like [Safety](https://github.com/Vurv78/Safety) to log HTTP requests, etc.
 
 ## Building
 1. [Setup Rust & Cargo](https://www.rust-lang.org/learn/get-started)

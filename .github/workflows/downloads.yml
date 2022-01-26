@@ -1,6 +1,6 @@
-name: Build
+name: Download
 
-on: [push, pull_request]
+on: [push]
 
 env:
   CARGO_TERM_COLOR: always
@@ -15,6 +15,13 @@ jobs:
         rustup default nightly
         cd autorun
         cargo build --release --verbose
+        cd ..
+
+    - name: Upload DLL
+      uses: actions/upload-artifact@v2
+      with:
+        name: 64 Bit
+        path: target/release/Autorun.dll
 
   buildgui64:
     buildx64:
@@ -26,6 +33,13 @@ jobs:
         rustup default nightly
         cd autorun-gui
         cargo build --release --verbose
+        cd ..
+
+    - name: Upload EXE
+      uses: actions/upload-artifact@v2
+      with:
+        name: 64 Bit
+        path: target/release/autorun-gui.exe
 
   # In the future make this run on an x86 machine https://github.com/actions/runner/issues/423
   build86:
@@ -38,6 +52,13 @@ jobs:
         rustup target add i686-pc-windows-msvc
         cd autorun
         cargo build --release --verbose --target=i686-pc-windows-msvc
+        cd ..
+
+    - name: Upload DLL
+      uses: actions/upload-artifact@v2
+      with:
+        name: 32 Bit
+        path: target/i686-pc-windows-msvc/release/autorun.dll
 
   buildgui86:
     runs-on: windows-latest
@@ -49,3 +70,10 @@ jobs:
         rustup target add i686-pc-windows-msvc
         cd autorun-gui
         cargo build --release --verbose --target=i686-pc-windows-msvc
+        cd ..
+
+    - name: Upload EXE
+      uses: actions/upload-artifact@v2
+      with:
+        name: 32 Bit
+        path: target/i686-pc-windows-msvc/release/autorun.dll

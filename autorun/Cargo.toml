@@ -1,0 +1,47 @@
+[package]
+name = "autorun"
+version = "1.0.0-beta"
+authors = ["Vurv78 <Vurv78@users.noreply.github.com>"]
+edition = "2021"
+publish = false
+
+[lib]
+crate-type = ["cdylib"]
+
+[features]
+default = ["runner", "logging"]
+runner = []
+logging = ["chrono", "log", "simplelog"]
+# Allow Autorun to also be injected through a DllMain export.
+inject = []
+# Use the gui instead of spawning a console.
+gui = ["bincode", "shh", "message-io"]
+
+[dependencies]
+autorun-shared = { path = "../autorun-shared" }
+rglua = { version = "2.1" }
+lua-patterns = "0.4.0"
+detour = { version = "0.8.1", default-features = false }
+
+human-panic = "1.0.3"
+
+# Global Mutable Variables
+once_cell = "1.8.0"
+atomic = "0.5.0"
+
+# Misc
+home = "0.5.3"
+thiserror = "1.0.30"
+winapi = { version = "0.3.9", features = ["wincon", "consoleapi", "shellapi"] }
+systrayx = "0.4.1"
+indoc = "1.0.3"
+
+# Logging
+chrono = { version = "0.4.19", optional = true }
+log = { version = "0.4.14", optional = true }
+simplelog = { version = "0.11.2", optional = true }
+
+# GUI Dependencies.
+bincode = { version = "2.0.0-beta.0", features = ["derive"], optional = true }
+shh = { version = "1.0.1", optional = true }
+message-io = { version = "0.14.3", optional = true }

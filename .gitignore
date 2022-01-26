@@ -1,6 +1,7 @@
-target/
+target
 Cargo.lock
-*.exe
-auto.bat
-*.dll
 .vscode
+
+*.exe
+*.dll
+*.log

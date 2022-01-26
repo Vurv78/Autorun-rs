@@ -1,5 +1,25 @@
-use crate::sys::{runlua::runLua, statics::*};
+use crate::{lua, global, logging::*};
+use autorun_shared::{REALM_CLIENT, REALM_MENU};
+
 use std::path::Path;
+
+use indoc::printdoc;
+
+pub fn init() {
+	unsafe { winapi::um::consoleapi::AllocConsole() };
+
+	let version = env!("CARGO_PKG_VERSION");
+	printdoc!("
+		<====> Autorun v{version} <====>
+		Type 'help' for a list of commands.
+	");
+
+	std::thread::spawn(|| loop {
+		if let Err(why) = try_process_input() {
+			warn!("Failed to process console input; {}", why);
+		}
+	});
+}
 
 pub(crate) fn try_process_input() -> std::io::Result<()> {
 	// Loop forever in this thread, since it is separate from Gmod, and take in user input.
@@ -11,7 +31,7 @@ pub(crate) fn try_process_input() -> std::io::Result<()> {
 
 	match word {
 		"lua_run_cl" => {
-			if let Err(why) = runLua(REALM_CLIENT, rest.to_owned()) {
+			if let Err(why) = lua::run(REALM_CLIENT, rest.to_owned()) {
 				error!("{}", why);
 				// We don't know if it was successful yet. The code will run later in painttraverse and print there.
 			}
@@ -19,14 +39,14 @@ pub(crate) fn try_process_input() -> std::io::Result<()> {
 		"lua_openscript_cl" => match std::fs::read_to_string(Path::new(rest_trim)) {
 			Err(why) => error!("Errored on lua_openscript. [{}]", why),
 			Ok(contents) => {
-				if let Err(why) = runLua(REALM_CLIENT, contents) {
+				if let Err(why) = lua::run(REALM_CLIENT, contents) {
 					error!("{}", why);
 				}
 			}
 		},
 
 		"lua_run_menu" => {
-			if let Err(why) = runLua(REALM_MENU, rest.to_owned()) {
+			if let Err(why) = lua::run(REALM_MENU, rest.to_owned()) {
 				error!("{}", why);
 			}
 		}
@@ -34,7 +54,7 @@ pub(crate) fn try_process_input() -> std::io::Result<()> {
 		"lua_openscript_menu" => match std::fs::read_to_string(Path::new(rest)) {
 			Err(why) => error!("Errored on lua_openscript. [{}]", why),
 			Ok(contents) => {
-				if let Err(why) = runLua(REALM_MENU, contents) {
+				if let Err(why) = lua::run(REALM_MENU, contents) {
 					error!("Errored on lua_openscript. {}", why);
 				}
 			}
@@ -50,8 +70,8 @@ pub(crate) fn try_process_input() -> std::io::Result<()> {
 			let wind = GetConsoleWindow();
 			ShowWindow(wind, SW_HIDE);
 
-			let mut tray = systrayx::Application::new().unwrap();
-			tray.set_icon_from_buffer(&include_bytes!("../assets/run.ico")[..], 32, 32)
+			let mut tray = systrayx::Application::new().expect("Failed to create new systrayx app");
+			tray.set_icon_from_buffer(&include_bytes!("../../../assets/run.ico")[..], 32, 32)
 				.expect("Failed to set icon");
 
 			let ptr = AtomicPtr::new(wind);
@@ -63,26 +83,34 @@ pub(crate) fn try_process_input() -> std::io::Result<()> {
 				x.quit();
 				Ok::<_, systrayx::Error>(())
 			})
-			.unwrap();
+			.expect("Couldn't add menu item");
 
 			tray.wait_for_message().unwrap();
 		},
 
 		"help" => {
-			indoc::printdoc! {"
+			printdoc!("
 				[Commands]
-
-				lua_run_cl <code>              | Runs lua code on the currently loaded lua state. Will print if any errors occur.
+				---
+				lua_run_cl <code>              | Runs lua code on the client state. Will print if any errors occur.
 				lua_openscript_cl <file_dir>   | Runs a lua script located at file_dir, this dir being an absolute directory on your pc. (Not relative)
 
-				lua_run_menu <code>            | Runs lua code in the menu state. Will print if any errors occur.
-				lua_openscript_menu <code>     | Runs lua code in the menu state. Will print if any errors occur.
+				lua_run_menu <code>            | Runs lua code on the menu state.
+				lua_openscript_menu <code>     | Runs a lua script at an absolute path on the menu state.
 
 				help                           | Prints this out.
 				hide                           | Hides the console, but remains active.
-			"};
+				---
+			");
 		}
-		_ => (),
+
+		msg => {
+			if msg.trim().is_empty() {
+				return Ok(());
+			} else {
+				warn!("Unknown command: {}", word);
+			}
+		},
 	}
 
 	Ok(())

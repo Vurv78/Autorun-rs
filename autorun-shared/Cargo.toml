@@ -1,0 +1,16 @@
+[package]
+name = "autorun-shared"
+description = "Shared autorun functionality"
+version = "0.1.0"
+authors = ["Vurv78 <Vurv78@users.noreply.github.com>"]
+edition = "2021"
+publish = false
+
+[dependencies]
+bincode = { version = "2.0.0-beta.0", features = ["derive"], optional = true }
+
+[features]
+# GUI Is not finished.
+default = []
+
+gui = ["bincode"]

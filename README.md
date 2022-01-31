@@ -78,9 +78,7 @@ sautorun.log( "Connected to server " .. sautorun.IP, DEBUG )
 ```
 
 ## Logging
-Autorun features logging under the ``logging`` feature. You need to build it yourself to enable this.  
-It will be re-enabled in the future when it is fixed.
-
+Autorun features logging under the ``logging`` feature. It is enabled by default.
 > Autorun automatically writes logs to a log file whenever you boot up a game for your security and for easy debugging.
 > Check the autorun/logs directory for crash dumps & logs if you use something like [Safety](https://github.com/Vurv78/Safety) to log HTTP requests, etc.
 

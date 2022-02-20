@@ -1,6 +1,5 @@
-use crate::{ui, global, hooks, logging};
+use crate::{ui, hooks::{self, HookingError}, logging};
 use logging::*;
-use rglua::prelude::*;
 
 #[derive(Debug, thiserror::Error)]
 pub enum StartError {
@@ -9,7 +8,7 @@ pub enum StartError {
 	LoggingStart(#[from] logging::LogInitError),
 
 	#[error("Failed to hook functions `{0}`")]
-	HookError(#[from] detour::Error),
+	HookError(#[from] HookingError),
 
 	#[error("Program panicked!")]
 	Panic
@@ -54,38 +53,6 @@ pub enum CleanupError {
 
 pub fn cleanup() -> Result<(), CleanupError> {
 	hooks::cleanup()?;
-
-	Ok(())
-}
-
-#[derive(Debug, thiserror::Error)]
-pub enum MenuStartError {
-	#[error("Failed to find JoinServer. Corrupted gmod install?")]
-	NoJoinServer,
-
-	#[error("Failed to detour JoinServer {0}")]
-	DetourError(#[from] detour::Error),
-}
-
-// When menu state is ready, run this.
-pub fn startup_menu(l: LuaState) -> Result<(), MenuStartError> {
-	use std::sync::atomic::AtomicPtr;
-
-	if global::MENU_STATE.set(AtomicPtr::from(l)).is_err() {
-		error!("MENU_STATE was occupied in gmod13_open. Shouldn't happen.");
-	}
-
-	lua_getglobal(l, cstr!("JoinServer"));
-	let joinserver_fn = lua_tocfunction(l, -1);
-	lua_pop(l, 1);
-
-	unsafe {
-		let hook = detour::GenericDetour::new(joinserver_fn, hooks::joinserver_h)?;
-		hooks::JOINSERVER_H.set(hook).unwrap();
-		hooks::JOINSERVER_H.get().unwrap().enable().unwrap();
-	}
-
-	printgm!(l, "Loaded Autorun!");
 
 	Ok(())
 }

@@ -1,12 +1,25 @@
-use crate::{hooks, lua, util, logging::*, global};
-use autorun_shared::{Realm, REALM_CLIENT, REALM_MENU};
-
+use crate::{hooks, lua, logging::*, global};
+use autorun_shared::Realm;
 use rglua::prelude::*;
-
-use std::ffi::CString;
 
 mod env;
 mod err;
+
+pub struct AutorunEnv {
+	// Whether this is the autorun.lua file
+	pub is_autorun_file: bool,
+
+	// Whether this is running before autorun
+	pub startup: bool,
+
+	pub ip: LuaString,
+
+	// Name/Path of the file being run
+	pub identifier: LuaString,
+
+	pub code: LuaString,
+	pub code_len: usize,
+}
 
 // Functions to interact with lua without triggering the detours
 pub fn compile<S: AsRef<str>>(l: LuaState, code: S) -> Result<(), &'static str> {
@@ -56,6 +69,9 @@ pub enum LuaEnvError {
 	#[error("Failed to get lua state")]
 	NoState,
 
+	#[error("Failed to get lua interface")]
+	Interface(#[from] rglua::interface::Error),
+
 	#[error("Failed to compile lua code '{0}'")]
 	Compile(String),
 
@@ -63,26 +79,25 @@ pub enum LuaEnvError {
 	Runtime(String)
 }
 
-pub fn run(realm: Realm, code: String) -> Result<(), &'static str> {
+#[derive(Debug, thiserror::Error)]
+pub enum RunError {
+	#[error("Failed to get LUASHARED003 interface")]
+	NoInterface(#[from] rglua::interface::Error),
+
+	#[error("Failed to get lua interface")]
+	NoLuaInterface,
+}
+
+// TODO: Might be able to make this synchronous by using LuaInterface.RunString (But that might also trigger detours..)
+pub fn run(realm: Realm, code: String) -> Result<(), RunError> {
 	// Check if lua state is valid for instant feedback
-	match realm {
-		REALM_MENU => {
-			let s = util::get_menu();
-			match s {
-				Some(l) => l,
-				None => {
-					return Err("Menu state hasn't been loaded. Hover over a ui icon or something")
-				}
-			}
-		}
-		REALM_CLIENT => {
-			let s = util::get_client();
-			if s.is_null() {
-				return Err("Client state has not been loaded. Join a server!");
-			}
-			s
-		}
-	};
+	let lua = rglua::iface!(LuaShared)?;
+	let cl = lua.GetLuaInterface(realm.into());
+	if !cl.is_null() {
+		debug!("Got {realm} interface for run");
+	} else {
+		return Err(RunError::NoLuaInterface);
+	}
 
 	match &mut global::LUA_SCRIPTS.try_lock() {
 		Ok(script_queue) => script_queue.push((realm, code)),
@@ -93,15 +108,16 @@ pub fn run(realm: Realm, code: String) -> Result<(), &'static str> {
 }
 
 // Runs lua, but inside of the `autorun` environment.
-pub fn run_with_env(
+pub fn run_env(
 	script: &str,
-	identifier: LuaString,
-	dumped_script: LuaString,
-	len: SizeT,
-	ip: &str,
-	startup: bool,
+	env: AutorunEnv
 ) -> Result<i32, LuaEnvError> {
-	let l = util::get_client();
+	let lua = iface!(LuaShared)?;
+	let iface = lua.GetLuaInterface(Realm::Client.into());
+	let iface = unsafe { iface.as_mut() }.ok_or(LuaEnvError::NoState)?;
+
+	let l = iface.base as LuaState;
+
 	if l.is_null() {
 		return Err(LuaEnvError::NoState);
 	}
@@ -116,21 +132,17 @@ pub fn run_with_env(
 	lua_createtable(l, 0, 0); // stack[1] = {}
 	lua_createtable(l, 0, 0); // stack[2] = {}
 
-	lua_pushstring(l, identifier); // stack[3] = identifier
+	lua_pushstring(l, env.identifier); // stack[3] = identifier
 	lua_setfield(l, -2, cstr!("NAME")); // stack[2].NAME = table.remove(stack, 3)
 
-	lua_pushlstring(l, dumped_script, len); // stack[3] = identifier
+	lua_pushlstring(l, env.code, env.code_len); // stack[3] = identifier
 	lua_setfield(l, -2, cstr!("CODE")); // stack[2].CODE = table.remove(stack, 3)
 
-	if let Ok(ip) = CString::new(ip) {
-		lua_pushstring(l, ip.as_ptr()); // stack[3] = ip
-	} else {
-		lua_pushnil(l); // stack[3] = nil
-	}
+	lua_pushstring(l, env.ip);
 	lua_setfield(l, -2, cstr!("IP")); // stack[2].IP = table.remove(stack, 3)
 
 	// If this is running before autorun, set SAUTORUN.STARTUP to true.
-	lua_pushboolean(l, startup as i32); // stack[3] = startup
+	lua_pushboolean(l, env.startup as i32); // stack[3] = startup
 	lua_setfield(l, -2, cstr!("STARTUP")); // stack[2].STARTUP = table.remove(stack, 3)
 
 	let fns = reg! [

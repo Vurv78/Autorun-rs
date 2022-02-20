@@ -1,6 +1,6 @@
 [package]
 name = "autorun"
-version = "1.0.0-beta"
+version = "1.0.0-beta2"
 authors = ["Vurv78 <Vurv78@users.noreply.github.com>"]
 edition = "2021"
 publish = false
@@ -19,7 +19,7 @@ gui = ["bincode", "shh", "message-io"]
 
 [dependencies]
 autorun-shared = { path = "../autorun-shared" }
-rglua = { version = "2.1" }
+rglua = { path = "../../rglua/rglua", version = "3.0.0-beta" }
 lua-patterns = "0.4.0"
 detour = { version = "0.8.1", default-features = false }
 
@@ -27,7 +27,6 @@ human-panic = "1.0.3"
 
 # Global Mutable Variables
 once_cell = "1.8.0"
-atomic = "0.5.0"
 
 # Misc
 home = "0.5.3"

@@ -1,5 +1,5 @@
-use crate::{lua, global, logging::*};
-use autorun_shared::{REALM_CLIENT, REALM_MENU};
+use crate::{lua, logging::*};
+use autorun_shared::Realm;
 
 use std::path::Path;
 
@@ -31,31 +31,31 @@ pub(crate) fn try_process_input() -> std::io::Result<()> {
 
 	match word {
 		"lua_run_cl" => {
-			if let Err(why) = lua::run(REALM_CLIENT, rest.to_owned()) {
-				error!("{}", why);
+			if let Err(why) = lua::run(Realm::Client, rest.to_owned()) {
+				error!("Errored on lua_run_cl {why}");
 				// We don't know if it was successful yet. The code will run later in painttraverse and print there.
 			}
 		}
 		"lua_openscript_cl" => match std::fs::read_to_string(Path::new(rest_trim)) {
 			Err(why) => error!("Errored on lua_openscript. [{}]", why),
 			Ok(contents) => {
-				if let Err(why) = lua::run(REALM_CLIENT, contents) {
-					error!("{}", why);
+				if let Err(why) = lua::run(Realm::Client, contents) {
+					error!("Errored on lua_openscript_cl: {why}");
 				}
 			}
 		},
 
 		"lua_run_menu" => {
-			if let Err(why) = lua::run(REALM_MENU, rest.to_owned()) {
-				error!("{}", why);
+			if let Err(why) = lua::run(Realm::Menu, rest.to_owned()) {
+				error!("Errored on lua_run_menu {why}");
 			}
 		}
 
 		"lua_openscript_menu" => match std::fs::read_to_string(Path::new(rest)) {
 			Err(why) => error!("Errored on lua_openscript. [{}]", why),
 			Ok(contents) => {
-				if let Err(why) = lua::run(REALM_MENU, contents) {
-					error!("Errored on lua_openscript. {}", why);
+				if let Err(why) = lua::run(Realm::Menu, contents) {
+					error!("Errored on lua_openscript. {why}");
 				}
 			}
 		},

@@ -2,11 +2,10 @@ use std::ffi::CStr;
 use std::io::Write;
 use std::{fs, sync::atomic::Ordering};
 
-use crate::{configs, global, lua, util, logging};
-use autorun_shared::{REALM_CLIENT, REALM_MENU};
+use crate::{configs, global, lua::{self, AutorunEnv}, util, logging};
 
 use logging::*;
-use rglua::interface::EngineClient;
+use rglua::interface;
 use rglua::prelude::*;
 
 #[macro_use]
@@ -14,25 +13,44 @@ pub mod lazy;
 
 // Make our own static detours because detours.rs is lame and locked theirs behind nightly. :)
 lazy_detour! {
-	pub static LUAL_NEWSTATE_H: extern "C" fn() -> LuaState = (*LUA_SHARED_RAW.get::<extern "C" fn() -> LuaState>(b"luaL_newstate").unwrap(), newstate_h);
-	pub static LUAL_LOADBUFFERX_H: extern "C" fn(LuaState, *const i8, SizeT, *const i8, *const i8) -> i32 = (*LUA_SHARED_RAW.get::<extern "C" fn(LuaState, LuaString, SizeT, LuaString, LuaString) -> i32>(b"luaL_loadbufferx").unwrap(), loadbufferx_h);
-	pub static JOINSERVER_H: extern "C" fn(LuaState) -> i32;
+	pub static LUAL_LOADBUFFERX_H: extern "C" fn(LuaState, *const i8, SizeT, *const i8, *const i8) -> i32 =
+		(*LUA_SHARED_RAW.get::<extern "C" fn(LuaState, LuaString, SizeT, LuaString, LuaString) -> i32>(b"luaL_loadbufferx").unwrap(), loadbufferx_h);
 }
 
 #[cfg(feature = "runner")]
-use rglua::interface::IPanel;
+use rglua::interface::Panel;
 
-type PaintTraverseFn = extern "fastcall" fn(&'static IPanel, usize, bool, bool);
+type PaintTraverseFn = extern "fastcall" fn(&'static Panel, usize, bool, bool);
 
 #[cfg(feature = "runner")]
 lazy_detour! {
 	static PAINT_TRAVERSE_H: PaintTraverseFn;
 }
 
-extern "C" fn newstate_h() -> LuaState {
-	let state = unsafe { LUAL_NEWSTATE_H.call() };
-	util::set_client(state);
-	state
+fn loadbufferx_hook(l: LuaState, code: LuaString, len: usize, identifier: LuaString, mode: LuaString) -> Result<i32, interface::Error> {
+	let engine = iface!(EngineClient)?;
+
+	let do_run;
+	if engine.IsConnected() {
+		let net = engine.GetNetChannelInfo();
+
+		if let Some(net) = unsafe { net.as_mut() } {
+			let ip = net.GetAddress();
+
+			let raw_path = unsafe { CStr::from_ptr(identifier) };
+			let path = &raw_path.to_string_lossy()[1..]; // Remove the @ from the beginning of the path
+
+			// There's way too many params here
+			do_run = dispatch(l, path, ip, code, len, identifier);
+			if !do_run {
+				return Ok(0);
+			}
+		}
+	}
+
+	unsafe {
+		Ok(LUAL_LOADBUFFERX_H.call(l, code, len, identifier, mode))
+	}
 }
 
 extern "C" fn loadbufferx_h(
@@ -42,52 +60,43 @@ extern "C" fn loadbufferx_h(
 	identifier: LuaString,
 	mode: LuaString,
 ) -> i32 {
-	let engine: *mut rglua::interface::EngineClient = iface!("engine", "VEngineClient015")
-		.expect("Couldn't get engine interface");
-	let engine = unsafe { engine.as_ref() }.expect("Couldn't get engine as_ref");
+	match loadbufferx_hook(l, code, len, identifier, mode) {
+		Ok(x) => x,
+		Err(why) => {
+			error!("Failed to run loadbufferx hook: {}", why);
 
-	let do_run;
-	if engine.IsConnected() {
-		// CLIENT
-		let server_ip = global::SERVER_IP.load(Ordering::Relaxed);
-
-		let raw_path = unsafe { CStr::from_ptr(identifier) };
-		let path = &raw_path.to_string_lossy()[1..]; // Remove the @ from the beginning of the path
-
-		// There's way too many params here
-		do_run = dispatch(l, path, server_ip, code, len, identifier);
-		if !do_run {
-			return 0
-		}
-	} else {
-		// MENU
-		if global::MENU_STATE.get().is_none() {
-			if let Err(why) = crate::cross::startup_menu(l) {
-				error!("Couldn't initialize menu state. {}", why);
+			unsafe {
+				LUAL_LOADBUFFERX_H.call(l, code, len, identifier, mode)
 			}
-
-			// Should only be file dumping and hooking on clientside, so just take the menu state.
 		}
-	}
-
-	unsafe {
-		LUAL_LOADBUFFERX_H.call(l, code, len, identifier, mode)
 	}
 }
 
-pub fn dispatch(l: LuaState, path: &str, server_ip: &str, mut code: LuaString, mut len: SizeT, identifier: LuaString) -> bool {
+pub fn dispatch(l: LuaState, path: &str, server_ip: LuaString, mut code: LuaString, mut len: SizeT, identifier: LuaString) -> bool {
 	let mut do_run = true;
-	if global::HAS_AUTORAN
+
+	let before_autorun = global::HAS_AUTORAN
 		.compare_exchange(false, true, Ordering::Relaxed, Ordering::Relaxed)
-		.is_ok()
-	{
+		.is_ok();
+
+	if before_autorun {
+		let env = AutorunEnv {
+			is_autorun_file: true,
+			startup: before_autorun,
+
+			identifier: identifier,
+			code: code,
+			code_len: len,
+
+			ip: server_ip,
+		};
 		// This will only run once when HAS_AUTORAN is false, setting it to true.
 		// Will be reset by JoinServer.
 		let ar_path = configs::path(configs::AUTORUN_PATH);
 		trace!("Running autorun script at {}", ar_path.display());
 		if let Ok(script) = fs::read_to_string(&ar_path) {
 			// Try to run here
-			if let Err(why) = lua::run_with_env(&script, identifier, code, len, server_ip, true) {
+			if let Err(why) = lua::run_env(&script, env) {
 				error!("{}", why);
 			}
 		} else {
@@ -99,7 +108,18 @@ pub fn dispatch(l: LuaState, path: &str, server_ip: &str, mut code: LuaString, m
 	}
 
 	if let Ok(script) = fs::read_to_string(configs::path(configs::HOOK_PATH)) {
-		match lua::run_with_env(&script, identifier, code, len, server_ip, false) {
+		let env = AutorunEnv {
+			is_autorun_file: false,
+			startup: before_autorun,
+
+			identifier: identifier,
+			code: code,
+			code_len: len,
+
+			ip: server_ip,
+		};
+
+		match lua::run_env(&script, env) {
 			Ok(top) => {
 				// If you return ``true`` in your sautorun/hook.lua file, then don't run the sautorun.CODE that is about to run.
 				match lua_type(l, top + 1) {
@@ -120,7 +140,9 @@ pub fn dispatch(l: LuaState, path: &str, server_ip: &str, mut code: LuaString, m
 	}
 
 	if global::FILESTEAL_ENABLED.load(Ordering::Relaxed) {
-		if let Some(mut file) = util::get_handle(path, server_ip) {
+		let ip = unsafe { CStr::from_ptr(server_ip) };
+
+		if let Ok(mut file) = util::get_handle(path, ip.to_string_lossy()) {
 			if let Err(why) = file.write_all(unsafe { std::ffi::CStr::from_ptr(code) }.to_bytes()) {
 				error!(
 					"Couldn't write to file made from lua path [{}]. {}",
@@ -133,24 +155,9 @@ pub fn dispatch(l: LuaState, path: &str, server_ip: &str, mut code: LuaString, m
 	do_run
 }
 
-// Since the first lua state will always be the menu state, just keep a variable for whether joinserver has been hooked or not,
-// If not, then hook it.
-pub extern "C" fn joinserver_h(state: LuaState) -> i32 {
-	let raw_ip = luaL_checkstring(state, 1);
-
-	let ip = try_rstr!(raw_ip).unwrap_or("Unknown");
-	info!("Joining Server with IP {}!", ip);
-
-	// Set the IP so we know where to write files in loadbufferx.
-	global::SERVER_IP.store(ip, Ordering::Relaxed);
-	global::HAS_AUTORAN.store(false, Ordering::Relaxed);
-
-	unsafe { JOINSERVER_H.get().unwrap().call(state) }
-}
-
 #[cfg(feature = "runner")]
 extern "fastcall" fn paint_traverse_h(
-	this: &'static IPanel,
+	this: &'static Panel,
 	panel_id: usize,
 	force_repaint: bool,
 	force_allow: bool,
@@ -167,58 +174,73 @@ extern "fastcall" fn paint_traverse_h(
 	if !script_queue.is_empty() {
 		let (realm, script) = script_queue.remove(0);
 
-		let state = match realm {
-			REALM_MENU => util::get_menu().expect("Menu state DNE in painttraverse. ??"), // Code will never get into the queue without a menu state already existing.
-			REALM_CLIENT => util::get_client(),
-		};
+		let lua = iface!(LuaShared);
+		match lua {
+			Ok(lua) => {
+				let iface = lua.GetLuaInterface( realm.into() );
+				if let Some(iface) = unsafe { iface.as_mut() } {
+					debug!("Got {realm} iface!");
+					let state = iface.base as _;
 
-		if state.is_null() {
-			return;
-		}
-
-		match lua::dostring(state, &script) {
+					match lua::dostring(state, &script) {
+						Err(why) => {
+							error!("{}", why);
+						}
+						Ok(_) => {
+							info!("Script of len #{} ran successfully.", script.len())
+						}
+					}
+				} else {
+					error!("Lua interface was null in painttraverse.");
+				}
+			},
 			Err(why) => {
-				error!("{}", why);
-			}
-			Ok(_) => {
-				info!("Script of len #{} ran successfully.", script.len())
+				error!("Failed to get LUASHARED003 interface in painttraverse {why}");
 			}
 		}
 	}
 }
 
+#[derive(Debug, thiserror::Error)]
+pub enum HookingError {
+	#[error("Failed to hook function: {0}")]
+	Detour(#[from] detour::Error),
+
+	#[error("Failed to get interface")]
+	Interface(#[from] rglua::interface::Error),
+
+	#[error("Failed to set hook")]
+	SetHook,
+}
+
 #[cfg(feature = "runner")]
-unsafe fn init_paint_traverse() -> Result<(), detour::Error> {
-	use rglua::interface::*;
-
-	let vgui: *mut IPanel = iface!("vgui2", "VGUI_Panel009").unwrap();
-	let panel_interface = vgui.as_ref().unwrap();
-
+unsafe fn init_paint_traverse() -> Result<(), HookingError> {
+	let vgui = iface!(Panel)?;
 	// Get painttraverse raw function object to detour.
 	let painttraverse: PaintTraverseFn = std::mem::transmute(
-		(panel_interface.vtable as *mut *mut c_void)
+		(vgui.vtable as *mut *mut c_void)
 			.offset(41)
 			.read(),
 	);
 
 	let detour = detour::GenericDetour::new(painttraverse, paint_traverse_h)?;
 
-	assert!(PAINT_TRAVERSE_H.set(detour).is_ok());
+	if let Err(_) = PAINT_TRAVERSE_H.set(detour) {
+		return Err(HookingError::SetHook);
+	}
+
 	PAINT_TRAVERSE_H.get().unwrap().enable()?;
 
 	Ok(())
 }
 
-pub fn init() -> Result<(), detour::Error> {
+pub fn init() -> Result<(), HookingError> {
 	use once_cell::sync::Lazy;
 
 	Lazy::force(&LUAL_LOADBUFFERX_H);
-	Lazy::force(&LUAL_NEWSTATE_H);
 
 	#[cfg(feature = "runner")]
-	unsafe {
-		init_paint_traverse()?
-	};
+	unsafe { init_paint_traverse() }?;
 
 	Ok(())
 }
@@ -226,8 +248,6 @@ pub fn init() -> Result<(), detour::Error> {
 pub fn cleanup() -> Result<(), detour::Error> {
 	unsafe {
 		LUAL_LOADBUFFERX_H.disable()?;
-		LUAL_NEWSTATE_H.disable()?;
-		JOINSERVER_H.get().unwrap().disable()?;
 
 		#[cfg(feature = "runner")]
 		PAINT_TRAVERSE_H.get().unwrap().disable()?;

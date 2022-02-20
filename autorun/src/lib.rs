@@ -47,11 +47,6 @@ pub fn main(l: LuaState) -> i32 {
 		error!("Failed to start Autorun: `{}`", why)
 	}
 
-	if let Err(why) = cross::startup_menu(l) {
-		printgm!(l, "Failed to start menu: `{}`", why);
-		error!("Failed to start menu: `{}`", why);
-	}
-
 	0
 }
 

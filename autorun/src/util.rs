@@ -1,24 +1,14 @@
-use crate::{configs, global, logging::*};
+use crate::{configs, logging::*};
 use std::fs::{self, File};
 use std::path::PathBuf;
 
-use rglua::types::LuaState;
+#[derive(Debug, thiserror::Error)]
+pub enum HandleError {
+	#[error("IO Error: `{0}`")]
+	IO(#[from] std::io::Error),
 
-use atomic::Ordering;
-
-#[inline(always)]
-pub fn get_menu() -> Option<LuaState> {
-	Some(global::MENU_STATE.get()?.load(Ordering::Acquire))
-}
-
-#[inline(always)]
-pub fn get_client() -> LuaState {
-	global::CLIENT_STATE.load(Ordering::Acquire)
-}
-
-#[inline(always)]
-pub fn set_client(state: LuaState) {
-	global::CLIENT_STATE.store(state, Ordering::Release)
+	#[error("Location is too long!")]
+	TooLong
 }
 
 /// Recursively creates folders based off of a directory from your HOME dir + the lua path made from the currently running file.
@@ -27,11 +17,12 @@ pub fn set_client(state: LuaState) {
 /// * `server_ip` - The ip of the server. This will be used to create the folder structure of HOME/autorun/lua_dumps/IP/...
 /// # Returns
 /// File created at the final dir.
-pub fn get_handle(location: &str, server_ip: &str) -> Option<File> {
-	if location.len() > 500 {
-		return None;
+pub fn get_handle<S: AsRef<str>>(location: &str, server_ip: S) -> Result<File, HandleError> {
+	if location.len() >= 500 {
+		return Err(HandleError::TooLong);
 	};
 
+	let server_ip = server_ip.as_ref();
 	let mut lua_run_path = PathBuf::from(location);
 
 	let extension = match lua_run_path.extension() {
@@ -43,36 +34,15 @@ pub fn get_handle(location: &str, server_ip: &str) -> Option<File> {
 		}
 		None => "txt",
 	};
+
 	lua_run_path.set_extension(extension);
 
 	let file_loc = &*configs::path(configs::DUMP_DIR)
-		.join(strip_invalid(server_ip))
-		.join(location);
+		.join(strip_invalid(server_ip));
 
-	match file_loc.parent() {
-		Some(dirs) => match fs::create_dir_all(dirs) {
-			Err(why) => {
-				error!(
-					"Couldn't create autorun dirs with path [{}]. [{}]",
-					dirs.display(),
-					why
-				);
-				None
-			}
-			Ok(_) => match File::create(file_loc) {
-				Ok(file) => Some(file),
-				Err(why) => {
-					error!(
-						"Couldn't create autorun file with path [{}]. [{}]",
-						why,
-						file_loc.display()
-					);
-					None
-				}
-			},
-		},
-		None => None,
-	}
+	fs::create_dir_all(file_loc)?;
+
+	Ok( File::create( file_loc.join(location) )? )
 }
 
 // Removes basic invalid filename stuff

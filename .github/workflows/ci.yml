@@ -16,15 +16,15 @@ jobs:
         cd autorun
         cargo build --release --verbose
 
-  buildgui64:
-    runs-on: windows-latest
-    steps:
-    - uses: actions/checkout@v2
-    - name: Build GUI
-      run: |
-        rustup default nightly
-        cd autorun-gui
-        cargo build --release --verbose
+  #buildgui64:
+  #  runs-on: windows-latest
+  #  steps:
+  #  - uses: actions/checkout@v2
+  #  - name: Build GUI
+  #    run: |
+  #      rustup default nightly
+  #      cd autorun-gui
+  #      cargo build --release --verbose
 
   # In the future make this run on an x86 machine https://github.com/actions/runner/issues/423
   build86:

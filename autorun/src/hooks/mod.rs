@@ -1,6 +1,7 @@
 use std::ffi::CStr;
 use std::io::Write;
 use std::{fs, sync::atomic::Ordering};
+use std::sync::atomic::AtomicU64;
 
 use crate::{configs, global, lua::{self, AutorunEnv}, util, logging};
 
@@ -27,6 +28,8 @@ lazy_detour! {
 	static PAINT_TRAVERSE_H: PaintTraverseFn;
 }
 
+static CONNECTED: AtomicU64 = AtomicU64::new(99999);
+
 fn loadbufferx_hook(l: LuaState, code: LuaString, len: usize, identifier: LuaString, mode: LuaString) -> Result<i32, interface::Error> {
 	let engine = iface!(EngineClient)?;
 
@@ -36,12 +39,25 @@ fn loadbufferx_hook(l: LuaState, code: LuaString, len: usize, identifier: LuaStr
 
 		if let Some(net) = unsafe { net.as_mut() } {
 			let ip = net.GetAddress();
+			let mut startup = false;
+
+			// TODO: It'd be great to hook net connections instead of doing this.
+			// However, this works fine for now.
+			let curtime = net.GetTimeConnected() as u64;
+			if curtime < CONNECTED.load(Ordering::Relaxed) {
+				debug!("Curtime is less than last time connected, assuming startup");
+				startup = true;
+				CONNECTED.store(curtime, Ordering::Relaxed);
+			} else {
+				// Awful
+				CONNECTED.store(curtime, Ordering::Relaxed);
+			}
 
 			let raw_path = unsafe { CStr::from_ptr(identifier) };
 			let path = &raw_path.to_string_lossy()[1..]; // Remove the @ from the beginning of the path
 
 			// There's way too many params here
-			do_run = dispatch(l, path, ip, code, len, identifier);
+			do_run = dispatch(l, startup, path, ip, code, len, identifier);
 			if !do_run {
 				return Ok(0);
 			}
@@ -72,23 +88,19 @@ extern "C" fn loadbufferx_h(
 	}
 }
 
-pub fn dispatch(l: LuaState, path: &str, server_ip: LuaString, mut code: LuaString, mut len: SizeT, identifier: LuaString) -> bool {
+pub fn dispatch(l: LuaState, startup: bool, path: &str, ip: LuaString, mut code: LuaString, mut len: SizeT, identifier: LuaString) -> bool {
 	let mut do_run = true;
 
-	let before_autorun = global::HAS_AUTORAN
-		.compare_exchange(false, true, Ordering::Relaxed, Ordering::Relaxed)
-		.is_ok();
-
-	if before_autorun {
+	if startup {
 		let env = AutorunEnv {
 			is_autorun_file: true,
-			startup: before_autorun,
+			startup,
 
-			identifier: identifier,
-			code: code,
+			identifier,
+			code,
 			code_len: len,
 
-			ip: server_ip,
+			ip,
 		};
 		// This will only run once when HAS_AUTORAN is false, setting it to true.
 		// Will be reset by JoinServer.
@@ -97,7 +109,7 @@ pub fn dispatch(l: LuaState, path: &str, server_ip: LuaString, mut code: LuaStri
 		if let Ok(script) = fs::read_to_string(&ar_path) {
 			// Try to run here
 			if let Err(why) = lua::run_env(&script, env) {
-				error!("{}", why);
+				error!("{why}");
 			}
 		} else {
 			error!(
@@ -110,13 +122,13 @@ pub fn dispatch(l: LuaState, path: &str, server_ip: LuaString, mut code: LuaStri
 	if let Ok(script) = fs::read_to_string(configs::path(configs::HOOK_PATH)) {
 		let env = AutorunEnv {
 			is_autorun_file: false,
-			startup: before_autorun,
+			startup,
 
-			identifier: identifier,
-			code: code,
+			identifier,
+			code,
 			code_len: len,
 
-			ip: server_ip,
+			ip: ip,
 		};
 
 		match lua::run_env(&script, env) {
@@ -140,7 +152,7 @@ pub fn dispatch(l: LuaState, path: &str, server_ip: LuaString, mut code: LuaStri
 	}
 
 	if global::FILESTEAL_ENABLED.load(Ordering::Relaxed) {
-		let ip = unsafe { CStr::from_ptr(server_ip) };
+		let ip = unsafe { CStr::from_ptr(ip) };
 
 		if let Ok(mut file) = util::get_handle(path, ip.to_string_lossy()) {
 			if let Err(why) = file.write_all(unsafe { std::ffi::CStr::from_ptr(code) }.to_bytes()) {

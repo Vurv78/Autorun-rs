@@ -2,7 +2,7 @@ use std::fmt;
 
 // I know this is a waste to contain 'server' but I want it to be able to be used with GetLuaInterface
 #[repr(u8)]
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug)]
 pub enum Realm {
 	Client = 0,
 	Server = 1,

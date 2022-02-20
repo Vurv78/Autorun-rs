@@ -19,7 +19,7 @@ gui = ["bincode", "shh", "message-io"]
 
 [dependencies]
 autorun-shared = { path = "../autorun-shared" }
-rglua = { path = "../../rglua/rglua", version = "3.0.0-beta" }
+rglua = { version = "3.0.0-beta" }
 lua-patterns = "0.4.0"
 detour = { version = "0.8.1", default-features = false }
 

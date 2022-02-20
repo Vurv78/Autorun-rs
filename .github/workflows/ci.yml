@@ -37,14 +37,3 @@ jobs:
         rustup target add i686-pc-windows-msvc
         cd autorun
         cargo build --release --verbose --target=i686-pc-windows-msvc
-
-  buildgui86:
-    runs-on: windows-latest
-    steps:
-    - uses: actions/checkout@v2
-    - name: Build GUI
-      run: |
-        rustup default nightly
-        rustup target add i686-pc-windows-msvc
-        cd autorun-gui
-        cargo build --release --verbose --target=i686-pc-windows-msvc

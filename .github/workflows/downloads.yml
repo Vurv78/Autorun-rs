@@ -58,21 +58,3 @@ jobs:
       with:
         name: 32 Bit
         path: target/i686-pc-windows-msvc/release/autorun.dll
-
-  buildgui86:
-    runs-on: windows-latest
-    steps:
-    - uses: actions/checkout@v2
-    - name: Build GUI
-      run: |
-        rustup default nightly
-        rustup target add i686-pc-windows-msvc
-        cd autorun-gui
-        cargo build --release --verbose --target=i686-pc-windows-msvc
-        cd ..
-
-    - name: Upload EXE
-      uses: actions/upload-artifact@v2
-      with:
-        name: 32 Bit
-        path: target/i686-pc-windows-msvc/release/autorun.dll

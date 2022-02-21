@@ -23,26 +23,17 @@ pub fn get_handle<S: AsRef<str>>(location: &str, server_ip: S) -> Result<File, H
 	};
 
 	let server_ip = server_ip.as_ref();
-	let mut lua_run_path = PathBuf::from(location);
-
-	let extension = match lua_run_path.extension() {
-		Some(ext) => {
-			match ext.to_str() {
-				Some(ext) if ext == "lua" => "lua", // Using guards check if the extension is lua, else it will fall under _.
-				_ => "txt",
-			}
-		}
-		None => "txt",
-	};
-
-	lua_run_path.set_extension(extension);
-
 	let file_loc = &*configs::path(configs::DUMP_DIR)
 		.join(strip_invalid(server_ip));
 
-	fs::create_dir_all(file_loc)?;
+	let mut path = file_loc.join(location);
 
-	Ok( File::create( file_loc.join(location) )? )
+	let dir = path.parent().unwrap_or(file_loc);
+	fs::create_dir_all(&dir)?;
+
+	path.set_extension("lua");
+
+	Ok( File::create( path )? )
 }
 
 // Removes basic invalid filename stuff

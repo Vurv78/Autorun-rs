@@ -47,11 +47,10 @@ fn loadbufferx_hook(l: LuaState, code: LuaString, len: usize, identifier: LuaStr
 			if curtime < CONNECTED.load(Ordering::Relaxed) {
 				debug!("Curtime is less than last time connected, assuming startup");
 				startup = true;
-				CONNECTED.store(curtime, Ordering::Relaxed);
-			} else {
-				// Awful
-				CONNECTED.store(curtime, Ordering::Relaxed);
 			}
+
+			// Awful
+			CONNECTED.store(curtime, Ordering::Relaxed);
 
 			let raw_path = unsafe { CStr::from_ptr(identifier) };
 			let path = &raw_path.to_string_lossy()[1..]; // Remove the @ from the beginning of the path
@@ -106,6 +105,7 @@ pub fn dispatch(l: LuaState, startup: bool, path: &str, ip: LuaString, mut code:
 		// Will be reset by JoinServer.
 		let ar_path = configs::path(configs::AUTORUN_PATH);
 		trace!("Running autorun script at {}", ar_path.display());
+
 		if let Ok(script) = fs::read_to_string(&ar_path) {
 			// Try to run here
 			if let Err(why) = lua::run_env(&script, env) {

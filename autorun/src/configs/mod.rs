@@ -10,6 +10,7 @@ pub static DUMP_DIR: &str = concat!(adir!(), "/lua_dumps");
 #[cfg(feature = "logging")]
 pub static LOG_DIR: &str = concat!(adir!(), "/logs");
 pub static INCLUDE_DIR: &str = concat!(adir!(), "/scripts");
+pub static PLUGIN_DIR: &str = concat!(adir!(), "/plugins");
 
 pub static AUTORUN_PATH: &str = concat!(adir!(), "/autorun.lua");
 pub static HOOK_PATH: &str = concat!(adir!(), "/hook.lua");

@@ -12,6 +12,7 @@ mod global;
 mod hooks;
 mod lua;
 mod util;
+mod plugins;
 
 use logging::*;
 

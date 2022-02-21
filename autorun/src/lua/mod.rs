@@ -21,6 +21,42 @@ pub struct AutorunEnv {
 	pub code_len: usize,
 }
 
+impl AutorunEnv {
+	pub fn from_lua(state: LuaState) -> Option<Self> {
+		lua_getglobal(state, cstr!("sautorun"));
+		if lua_type(state, -1) == rglua::lua::TTABLE {
+			lua_getfield(state, -1, cstr!("STARTUP"));
+			let startup = lua_toboolean(state, -1) != 0;
+
+			lua_getfield(state, -1, cstr!("NAME"));
+			let identifier = lua_tostring(state, -1);
+
+			lua_getfield(state, -1, cstr!("CODE_LEN"));
+			let mut code_len = lua_tointeger(state, -1) as usize;
+
+			lua_getfield(state, -1, cstr!("CODE"));
+			let code = lua_tolstring(state, -1, &mut code_len);
+
+			lua_getfield(state, -1, cstr!("IP"));
+			let ip = lua_tostring(state, -1);
+
+			lua_pop(state, 6);
+
+			return Some(AutorunEnv {
+				is_autorun_file: false,
+				startup,
+				code,
+				identifier,
+				code_len,
+				ip
+			});
+		}
+
+		lua_pop(state, 1);
+		None
+	}
+}
+
 // Functions to interact with lua without triggering the detours
 pub fn compile<S: AsRef<str>>(l: LuaState, code: S) -> Result<(), &'static str> {
 	let s = code.as_ref();
@@ -134,6 +170,9 @@ pub fn run_env(
 
 	lua_pushstring(l, env.identifier); // stack[3] = identifier
 	lua_setfield(l, -2, cstr!("NAME")); // stack[2].NAME = table.remove(stack, 3)
+
+	lua_pushinteger(l, env.code_len as LuaInteger); // stack[3] = code_len
+	lua_setfield(l, -2, cstr!("CODE_LEN")); // stack[2].CODE_LEN = table.remove(stack, 3)
 
 	lua_pushlstring(l, env.code, env.code_len); // stack[3] = identifier
 	lua_setfield(l, -2, cstr!("CODE")); // stack[2].CODE = table.remove(stack, 3)

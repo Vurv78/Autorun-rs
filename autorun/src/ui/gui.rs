@@ -1,6 +1,6 @@
-use std::{io::Read, time::Duration};
+use std::io::Read;
 use autorun_shared::serde::{ToGUI, ToAutorun, Setting};
-use message_io::{node::{self, NodeEvent}, network::{Transport, NetEvent}};
+use message_io::{node, network::{Transport, NetEvent}};
 use crate::{lua, logging::error, global::{FILESTEAL_ENABLED, LOGGING_ENABLED}};
 
 pub fn init() {
@@ -10,11 +10,6 @@ pub fn init() {
 	std::thread::spawn(move || {
 		instance(stdout);
 	});
-}
-
-enum Signal {
-	Greet,
-	Msg(String)
 }
 
 pub fn instance(mut stdout: shh::ShhStdout) {
@@ -29,7 +24,7 @@ pub fn instance(mut stdout: shh::ShhStdout) {
 	let endpoints = Arc::new(Mutex::new(vec![]));
 	let for_listener = Arc::clone(&endpoints);
 
-	let config = bincode::config::Configuration::standard();
+	let config = bincode::config::standard();
 	listener.for_each(move |event| match event.network() {
 		NetEvent::Connected(_, _ok) => unreachable!(),
 		NetEvent::Accepted(endpoint, _) => {

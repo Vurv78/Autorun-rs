@@ -3,6 +3,7 @@ use std::fmt;
 // I know this is a waste to contain 'server' but I want it to be able to be used with GetLuaInterface
 #[repr(u8)]
 #[derive(Clone, Copy, Debug)]
+#[cfg_attr(feature = "gui", derive(bincode::Decode, bincode::Encode))]
 pub enum Realm {
 	Client = 0,
 	Server = 1,
@@ -16,6 +17,17 @@ impl fmt::Display for Realm {
 			Realm::Server => "server",
 			Realm::Menu => "menu"
 		})
+	}
+}
+
+impl From<u8> for Realm {
+	fn from(realm: u8) -> Self {
+		match realm {
+			0 => Realm::Client,
+			1 => Realm::Server,
+			2 => Realm::Menu,
+			_ => panic!("Invalid realm")
+		}
 	}
 }
 

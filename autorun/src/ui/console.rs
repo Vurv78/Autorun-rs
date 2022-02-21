@@ -6,7 +6,12 @@ use std::path::Path;
 use indoc::printdoc;
 
 pub fn init() {
-	unsafe { winapi::um::consoleapi::AllocConsole() };
+	unsafe {
+		// Load this library before it starts spamming useless errors into our console.
+		// https://github.com/Vurv78/Autorun-rs/issues/26
+		winapi::um::libloaderapi::LoadLibraryA( rglua::cstr!("vaudio_speex.dll") );
+		winapi::um::consoleapi::AllocConsole()
+	};
 
 	let version = env!("CARGO_PKG_VERSION");
 	printdoc!("

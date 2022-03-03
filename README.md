@@ -8,22 +8,23 @@
 * Supports both 32 and 64 bit branches (WARNING: See [#22](https://github.com/Vurv78/Autorun-rs/issues/22))
 * Running a script before autorun (``autorun.lua``), to detour and bypass any 'anticheats'
 * Scripthook, stop & run scripts before anything runs on you, gives information & functions to assist in a safe separate lua environment
+* File logging (to ``autorun/logs``)
 
-## Usage
-### Menu Plugin
+## 🤔 Usage
+### 🧩 Menu Plugin
 Autorun can also be used as a menu plugin / required from lua automatically from the menu state.
 1. [Get the DLL](#downloading)
 1. Put the ``gmsv_autorun_win<arch>.dll`` file into your ``garrysmod/lua/bin`` folder.
 2. Add ``require("autorun")`` at the bottom of ``garrysmod/lua/menu/menu.lua``  
 **It will now run automatically when garrysmod loads at the menu.**
 
-### Injecting
+### 💉 Injecting
 The traditional (but more inconvenient) method to use this is to just inject it.
 1. Get an injector (Make sure it's compatible to inject 32/64 bit code depending on your use).  
 2. [Get the DLL](#downloading)
 3. Inject into gmod while you're in the menu
 
-## Scripthook
+## 📜 Scripthook
 Autorun features scripthook, which means we'll run your script before any other garrysmod script executes to verify if you want the code to run by running your own hook script.
 *This runs in a separate environment from ``_G``, so to modify globals, do ``_G.foo = bar*``
 
@@ -32,8 +33,7 @@ Use their C counterparts (``HTTP`` and ``file.Open``)
 
 __See an example project using the scripthook [here](https://github.com/Vurv78/Safety).__
 
-### File Structure
-
+### 📁 File Structure
 ```golo
 C:\Users\<User>\autorun
 ├── \autorun.lua # Runs *once* before autorun
@@ -47,7 +47,7 @@ C:\Users\<User>\autorun
 └── ...
 ```
 
-### Fields
+### 🗃️ Fields
 Here are the fields for the ``sautorun`` table that gets passed in scripthook.
 | Field    | Type             | Description                                                             |
 | ---      | ---              | ---                                                                     |
@@ -59,7 +59,7 @@ Here are the fields for the ``sautorun`` table that gets passed in scripthook.
 | log      | fn(string, uint?)| A function that logs to your autorun console. Second param is level ascending with urgency, 1 being error, 2 warning, 3, info, 4 debug, 5 trace. Default 3        |
 | require | fn(string) | Works like gmod's include function. Does not cache like regular lua's require for now. Runs a script local to autorun/scripts and passes the returned values |
 
-### Examples
+### ✍️ Examples
 __hook.lua__  
 This file runs before every single lua script run on your client from addons and servers.
 ```lua
@@ -80,12 +80,14 @@ local ERROR, WARN, INFO, DEBUG, TRACE = 1, 2, 3, 4, 5
 sautorun.log( "Connected to server " .. sautorun.IP, DEBUG )
 ```
 
-## Logging
-Autorun features logging under the ``logging`` feature. It is enabled by default.
-> Autorun automatically writes logs to a log file whenever you boot up a game for your security and for easy debugging.
-> Check the autorun/logs directory for crash dumps & logs if you use something like [Safety](https://github.com/Vurv78/Safety) to log HTTP requests, etc.
+## ⬇️ Downloading
+### Stable
+You can get a 'stable' release from [the releases](https://github.com/Vurv78/Autorun-rs/releases/latest).
+### Bleeding Edge
+You can get the absolute latest download (from code in the repo) in [the Github Actions tab](https://github.com/Vurv78/Autorun-rs/actions/workflows/downloads.yml)  
+Note it may not work as expected.
 
-## Building
+## 🛠️ Building
 You may want to build this yourself if you want to make changes / contribute (or don't trust github actions for whatever reason..)
 1. [Setup Rust & Cargo](https://www.rust-lang.org/learn/get-started)
 2. Use ``build_win_32.bat`` or ``build_win_64.bat``.  

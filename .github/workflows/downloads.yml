@@ -23,24 +23,6 @@ jobs:
         name: 64 Bit
         path: target/release/Autorun.dll
 
-  # Re-enable this when gui is ready.
-  #buildgui64:
-  #  runs-on: windows-latest
-  #  steps:
-  #  - uses: actions/checkout@v2
-  #  - name: Build GUI
-  #    run: |
-  #      rustup default nightly
-  #      cd autorun-gui
-  #      cargo build --release --verbose
-  #      cd ..
-
-  #  - name: Upload EXE
-  #    uses: actions/upload-artifact@v2
-  #    with:
-  #      name: 64 Bit
-  #      path: target/release/autorun-gui.exe
-
   # In the future make this run on an x86 machine https://github.com/actions/runner/issues/423
   build86:
     runs-on: windows-latest

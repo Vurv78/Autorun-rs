@@ -1,7 +1,6 @@
 [workspace]
 members = [
 	"autorun",
-	"autorun-gui",
 	"autorun-shared"
 ]
 exclude = ["assets"]

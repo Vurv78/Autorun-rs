@@ -14,8 +14,6 @@ runner = []
 logging = ["chrono", "log", "simplelog"]
 # Allow Autorun to also be injected through a DllMain export.
 inject = []
-# Use the gui instead of spawning a console.
-gui = ["bincode", "shh", "message-io"]
 
 [dependencies]
 autorun-shared = { path = "../autorun-shared" }
@@ -39,8 +37,3 @@ indoc = "1.0.3"
 chrono = { version = "0.4.19", optional = true }
 log = { version = "0.4.14", optional = true }
 simplelog = { version = "0.11.2", optional = true }
-
-# GUI Dependencies.
-bincode = { version = "2.0.0-beta.0", features = ["derive"], optional = true }
-shh = { version = "1.0.1", optional = true }
-message-io = { version = "0.14.3", optional = true }

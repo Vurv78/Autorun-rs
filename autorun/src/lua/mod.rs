@@ -172,14 +172,16 @@ pub fn run_prepare<S: AsRef<str>, F: Fn(LuaState)>(script: S, func: F) -> Result
 
 	func(l);
 
-	// Backwards compatibility
-	lua_pushvalue(l, -2);
-	lua_setfield(l, -3, cstr!("sautorun")); // stack[1].sautorun = table.remove(stack, 2)
+	lua_pushvalue(l, -2); // stack[3] = stack[2]
+	lua_setfield(l, -3, cstr!("sautorun")); // stack[1].sautorun = table.remove(stack, 3)
+	lua_setfield(l, -2, cstr!("Autorun")); // stack[1].Autorun = table.remove(stack, 2)
 
-	lua_setfield(l, -2, cstr!("Autorun"));
+	// Backwards compatibility
+	// lua_getfield(l, -2, cstr!("Autorun"));
+	// lua_setfield(l, -2, cstr!("sautorun"));
 
 	// Create a metatable to make the env inherit from _G
-	lua_createtable(l, 0, 0); // stack[2] = {}
+	lua_createtable(l, 0, 1); // stack[2] = {}
 	lua_pushvalue(l, GLOBALSINDEX); // stack[3] = _G
 	lua_setfield(l, -2, cstr!("__index")); // stack[2].__index = table.remove(stack, 3)
 	lua_setmetatable(l, -2); // setmetatable(stack[1], table.remove(stack, 2))
@@ -196,7 +198,7 @@ pub fn run_prepare<S: AsRef<str>, F: Fn(LuaState)>(script: S, func: F) -> Result
 // Runs lua, but inside of the `autorun` environment.
 pub fn run_env_prep<S: AsRef<str>, F: Fn(LuaState)>(script: S, env: &AutorunEnv, prep: Option<F>) -> Result<i32, LuaEnvError> {
 	run_prepare(script, |l| {
-		// sautorun located at -2
+		// Autorun located at -2
 
 		lua_pushstring(l, env.identifier); // stack[3] = identifier
 		lua_setfield(l, -2, cstr!("NAME")); // stack[2].NAME = table.remove(stack, 3)
@@ -255,26 +257,21 @@ pub fn run_plugin<S: AsRef<str>>(script: S, env: &AutorunEnv, plugin: &Plugin) -
 			lua_setfield(l, -2, cstr!("AUTHOR"));
 		}
 
-		// Todo
-		lua_createtable(l, 0, 0);
 		match plugin.get_settings().as_table() {
 			Some(tbl) => {
+				lua_createtable(l, 0, tbl.len() as i32);
+
 				for (k, v) in tbl.iter() {
-					match CString::new( k.as_bytes() ) {
-						Ok(k) => {
-							lua_pushstring(l, k.as_ptr());
-						}
+					let k = match CString::new( k.as_bytes() ) {
+						Ok(k) => k,
 						Err(_) => { continue }
 					};
 
 					let success = match v {
 						toml::Value::String(s) => {
-							if let Ok(s) = CString::new( s.as_bytes() ) {
-								lua_pushstring(l, s.as_ptr());
-								true
-							} else {
-								false
-							}
+							let bytes = s.as_bytes();
+ 							lua_pushlstring(l, bytes.as_ptr() as _, bytes.len());
+							true
 						},
 						toml::Value::Integer(n) => {
 							lua_pushinteger(l, *n as LuaInteger);
@@ -295,18 +292,14 @@ pub fn run_plugin<S: AsRef<str>>(script: S, env: &AutorunEnv, plugin: &Plugin) -
 					};
 
 					if success {
-						lua_settable(l, -3);
-					} else {
-						// Pop unused key
-						lua_pop(l, 1);
+						lua_setfield(l, -2, k.as_ptr());
 					}
 				}
 			},
-			None => ()
+			None => lua_createtable(l, 0, 0)
 		}
 
 		lua_setfield(l, -2, cstr!("Settings"));
-
-		lua_setfield(l, -3, cstr!("Plugin"));
+		lua_setfield(l, -2, cstr!("Plugin"));
 	}))
 }

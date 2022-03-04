@@ -120,34 +120,34 @@ pub fn find() -> Result<Vec<(String, Result<Plugin, PluginError>)>, PluginError>
 
 	let dir = std::fs::read_dir( configs::path(PLUGIN_DIR) )?;
 	for d in dir {
-		if let Ok(d) = d {
-			let path = d.path();
-			let path_name = path.file_name()
-				.map(|x| x.to_string_lossy().to_string())
-				.unwrap_or( path.display().to_string() );
+		match d {
+			Ok(d) => {
+				let path = d.path();
+				let path_name = path
+					.file_name()
+					.map(|x| x.to_string_lossy().to_string())
+					.unwrap_or( path.display().to_string() );
 
-			if path.is_dir() {
-				let plugin_toml = path.join("plugin.toml");
-				let res = if plugin_toml.exists() {
-					let content = std::fs::read_to_string(plugin_toml)?;
-					match toml::from_str::<serde::PluginToml>(&content) {
-						Ok(toml) => {
-							Ok(
+				if path.is_dir() {
+					let plugin_toml = path.join("plugin.toml");
+					let res = if plugin_toml.exists() {
+						let content = std::fs::read_to_string(plugin_toml)?;
+						match toml::from_str::<serde::PluginToml>(&content) {
+							Ok(toml) => Ok(
 								Plugin {
 									data: toml,
 									dir: path
 								}
-							)
-						},
-						Err(why) => {
-							Err(PluginError::Parsing(why))
+							),
+							Err(why) => Err(PluginError::Parsing(why))
 						}
-					}
-				} else {
-					Err(PluginError::NoToml)
-				};
-				plugins.push((path_name, res));
+					} else {
+						Err(PluginError::NoToml)
+					};
+					plugins.push((path_name, res));
+				}
 			}
+			Err(why) => error!("Failed to read dir entry in autorun/plugins: {why}")
 		}
 	}
 	Ok(plugins)

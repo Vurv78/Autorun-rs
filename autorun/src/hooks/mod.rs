@@ -119,7 +119,7 @@ pub fn dispatch(l: LuaState, startup: bool, path: &str, ip: LuaString, mut code:
 				error!("{why}");
 			}
 		} else {
-			error!(
+			debug!(
 				"Couldn't read your autorun script file at [{}]",
 				ar_path.display()
 			);

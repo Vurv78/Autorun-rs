@@ -1,4 +1,4 @@
-use crate::{ui, hooks::{self, HookingError}, logging};
+use crate::{ui, hooks::{self, HookingError}, logging, plugins::{self, PluginError}};
 use logging::*;
 
 #[derive(Debug, thiserror::Error)]
@@ -9,6 +9,9 @@ pub enum StartError {
 
 	#[error("Failed to hook functions `{0}`")]
 	HookError(#[from] HookingError),
+
+	#[error("Failed to start plugins `{0}`")]
+	PluginError(#[from] PluginError),
 
 	#[error("Program panicked!")]
 	Panic
@@ -33,6 +36,9 @@ pub fn startup() -> Result<(), StartError> {
 
 		debug!("Starting: Hooks");
 		hooks::init()?;
+
+		debug!("Starting: Plugins");
+		plugins::init()?;
 
 		debug!("Finished Startup!");
 

@@ -3,6 +3,7 @@ use std::io::Write;
 use std::{fs, sync::atomic::Ordering};
 use std::sync::atomic::AtomicU64;
 
+use crate::plugins;
 use crate::{configs, global, lua::{self, AutorunEnv}, util, logging};
 
 use logging::*;
@@ -100,7 +101,13 @@ pub fn dispatch(l: LuaState, startup: bool, path: &str, ip: LuaString, mut code:
 			code_len: len,
 
 			ip,
+			plugin: None
 		};
+
+		if let Err(why) = plugins::call_autorun(&env) {
+			error!("Failed to call autorun plugins: {why}");
+		}
+
 		// This will only run once when HAS_AUTORAN is false, setting it to true.
 		// Will be reset by JoinServer.
 		let ar_path = configs::path(configs::AUTORUN_PATH);
@@ -108,7 +115,7 @@ pub fn dispatch(l: LuaState, startup: bool, path: &str, ip: LuaString, mut code:
 
 		if let Ok(script) = fs::read_to_string(&ar_path) {
 			// Try to run here
-			if let Err(why) = lua::run_env(&script, env) {
+			if let Err(why) = lua::run_env(&script, &env) {
 				error!("{why}");
 			}
 		} else {
@@ -129,9 +136,14 @@ pub fn dispatch(l: LuaState, startup: bool, path: &str, ip: LuaString, mut code:
 			code_len: len,
 
 			ip: ip,
+			plugin: None
 		};
 
-		match lua::run_env(&script, env) {
+		if let Err(why) = plugins::call_hook(&env) {
+			error!("{why}");
+		}
+
+		match lua::run_env(&script, &env) {
 			Ok(top) => {
 				// If you return ``true`` in your sautorun/hook.lua file, then don't run the sautorun.CODE that is about to run.
 				match lua_type(l, top + 1) {

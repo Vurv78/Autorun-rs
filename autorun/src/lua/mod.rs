@@ -261,39 +261,54 @@ pub fn run_plugin<S: AsRef<str>>(script: S, env: &AutorunEnv, plugin: &Plugin) -
 			Some(tbl) => {
 				lua_createtable(l, 0, tbl.len() as i32);
 
+				fn push_value(l: LuaState, v: &toml::Value) {
+					match v {
+						toml::Value::String(s) => {
+							let bytes = s.as_bytes();
+ 							lua_pushlstring(l, bytes.as_ptr() as _, bytes.len());
+						},
+						toml::Value::Integer(n) => lua_pushinteger(l, *n as LuaInteger),
+						toml::Value::Boolean(b) => lua_pushboolean(l, *b as i32),
+
+						toml::Value::Float(f) => lua_pushnumber(l, *f),
+
+						toml::Value::Array(arr) => {
+							lua_createtable(l, arr.len() as i32, 0);
+
+							for (i, v) in arr.iter().enumerate() {
+								push_value(l, v);
+								lua_rawseti(l, -2, i as i32 + 1);
+							}
+						},
+
+						toml::Value::Table(tbl) => {
+							lua_createtable(l, 0, tbl.len() as i32);
+
+							for (k, v) in tbl.iter() {
+								if let Ok(k) = CString::new( k.as_bytes() ) {
+									push_value(l, v);
+									lua_setfield(l, -2, k.as_ptr());
+								}
+							}
+						},
+
+						toml::Value::Datetime(time) => {
+							// Just pass a string, smh
+							let time = time.to_string();
+							let bytes = time.as_bytes();
+ 							lua_pushlstring(l, bytes.as_ptr() as _, bytes.len());
+						}
+					}
+				}
+
 				for (k, v) in tbl.iter() {
 					let k = match CString::new( k.as_bytes() ) {
 						Ok(k) => k,
 						Err(_) => { continue }
 					};
 
-					let success = match v {
-						toml::Value::String(s) => {
-							let bytes = s.as_bytes();
- 							lua_pushlstring(l, bytes.as_ptr() as _, bytes.len());
-							true
-						},
-						toml::Value::Integer(n) => {
-							lua_pushinteger(l, *n as LuaInteger);
-							true
-						},
-						toml::Value::Boolean(b) => {
-							lua_pushboolean(l, *b as i32);
-							true
-						},
-
-						toml::Value::Float(f) => {
-							lua_pushnumber(l, *f);
-							true
-						}
-
-						// Array, table, etc currently not supported.
-						_ => false,
-					};
-
-					if success {
-						lua_setfield(l, -2, k.as_ptr());
-					}
+					push_value(l, v);
+					lua_setfield(l, -2, k.as_ptr());
 				}
 			},
 			None => lua_createtable(l, 0, 0)

@@ -4,7 +4,7 @@ use std::{fs, sync::atomic::Ordering};
 use std::sync::atomic::AtomicU64;
 
 use crate::plugins;
-use crate::{configs, global, lua::{self, AutorunEnv}, util, logging};
+use crate::{configs::{self, SETTINGS}, global, lua::{self, AutorunEnv}, util, logging};
 
 use logging::*;
 use rglua::interface;
@@ -31,8 +31,21 @@ lazy_detour! {
 
 static CONNECTED: AtomicU64 = AtomicU64::new(99999);
 
+pub struct DispatchParams<'a> {
+	ip: LuaString,
+	code: LuaString,
+	code_len: usize,
+	identifier: LuaString,
+
+	startup: bool,
+	path: &'a str,
+	#[allow(unused)]
+	engine: &'a mut interface::EngineClient,
+	net: &'a mut interface::NetChannelInfo,
+}
+
 fn loadbufferx_hook(l: LuaState, code: LuaString, len: usize, identifier: LuaString, mode: LuaString) -> Result<i32, interface::Error> {
-	let engine = iface!(EngineClient)?;
+	let mut engine = iface!(EngineClient)?;
 
 	let do_run;
 	if engine.IsConnected() {
@@ -57,7 +70,19 @@ fn loadbufferx_hook(l: LuaState, code: LuaString, len: usize, identifier: LuaStr
 			let path = &raw_path.to_string_lossy()[1..]; // Remove the @ from the beginning of the path
 
 			// There's way too many params here
-			do_run = dispatch(l, startup, path, ip, code, len, identifier);
+			let params = DispatchParams {
+				ip: LuaString::from(ip),
+				code: code,
+				code_len: len,
+				identifier: identifier,
+				startup,
+				path,
+
+				engine: &mut engine,
+				net: net
+			};
+
+			do_run = dispatch(l, params);
 			if !do_run {
 				return Ok(0);
 			}
@@ -88,24 +113,24 @@ extern "C" fn loadbufferx_h(
 	}
 }
 
-pub fn dispatch(l: LuaState, startup: bool, path: &str, ip: LuaString, mut code: LuaString, mut len: SizeT, identifier: LuaString) -> bool {
+pub fn dispatch(l: LuaState, mut params: DispatchParams) -> bool {
 	let mut do_run = true;
 
-	if startup {
+	if params.startup {
 		let env = AutorunEnv {
 			is_autorun_file: true,
-			startup,
+			startup: params.startup,
 
-			identifier,
-			code,
-			code_len: len,
+			identifier: params.identifier,
+			code: params.code,
+			code_len: params.code_len,
 
-			ip,
+			ip: params.ip,
 			plugin: None
 		};
 
 		if let Err(why) = plugins::call_autorun(&env) {
-			error!("Failed to call autorun plugins: {why}");
+			error!("Failed to call plugins (autorun): {why}");
 		}
 
 		// This will only run once when HAS_AUTORAN is false, setting it to true.
@@ -126,51 +151,71 @@ pub fn dispatch(l: LuaState, startup: bool, path: &str, ip: LuaString, mut code:
 		}
 	}
 
-	if let Ok(script) = fs::read_to_string(configs::path(configs::HOOK_PATH)) {
+	{
+		// Calling hook.lua
 		let env = AutorunEnv {
 			is_autorun_file: false,
-			startup,
+			startup: params.startup,
 
-			identifier,
-			code,
-			code_len: len,
+			identifier: params.identifier,
+			code: params.code,
+			code_len: params.code_len,
 
-			ip: ip,
+			ip: params.ip,
 			plugin: None
 		};
 
-		if let Err(why) = plugins::call_hook(&env) {
-			error!("{why}");
+		if SETTINGS.plugins.enabled {
+			if let Err(why) = plugins::call_hook(&env) {
+				error!("Failed to call plugins (hook): {why}");
+			}
 		}
 
-		match lua::run_env(&script, &env) {
-			Ok(top) => {
-				// If you return ``true`` in your sautorun/hook.lua file, then don't run the sautorun.CODE that is about to run.
-				match lua_type(l, top + 1) {
-					rglua::lua::TBOOLEAN => {
-						do_run = lua_toboolean(l, top + 1) == 0;
+		if let Ok(script) = fs::read_to_string(configs::path(configs::HOOK_PATH)) {
+			match lua::run_env(&script, &env) {
+				Ok(top) => {
+					// If you return ``true`` in your sautorun/hook.lua file, then don't run the sautorun.CODE that is about to run.
+					match lua_type(l, top + 1) {
+						rglua::lua::TBOOLEAN => {
+							do_run = lua_toboolean(l, top + 1) == 0;
+						}
+						rglua::lua::TSTRING => {
+							// lua_tolstring sets len to new length automatically.
+							let nul_str = lua_tolstring(l, top + 1, &mut params.code_len);
+							params.code = nul_str;
+						}
+						_ => (),
 					}
-					rglua::lua::TSTRING => {
-						// lua_tolstring sets len to new length automatically.
-						let nul_str = lua_tolstring(l, top + 1, &mut len);
-						code = nul_str;
-					}
-					_ => (),
+					lua_settop(l, top);
 				}
-				lua_settop(l, top);
+				Err(_why) => (),
 			}
-			Err(_why) => (),
 		}
 	}
 
-	if global::FILESTEAL_ENABLED.load(Ordering::Relaxed) {
-		let ip = unsafe { CStr::from_ptr(ip) };
+	if SETTINGS.filesteal.enabled {
+		let mut fmt = SETTINGS.filesteal.format.clone();
+		if fmt.contains("<ip>") {
+			let ip = unsafe { CStr::from_ptr(params.ip) };
+			let ip = ip.to_string_lossy();
 
-		if let Ok(mut file) = util::get_handle(path, ip.to_string_lossy()) {
-			if let Err(why) = file.write_all(unsafe { std::ffi::CStr::from_ptr(code) }.to_bytes()) {
+			fmt = fmt.replace("<ip>", &ip);
+		}
+
+		if fmt.contains("<hostname>") {
+			let hostname = params.net.GetName();
+			let hostname = unsafe { CStr::from_ptr(hostname) };
+			let hostname = hostname.to_string_lossy();
+
+			fmt = fmt.replace("<hostname>", &hostname);
+		}
+
+		if let Ok(mut file) = util::get_handle(params.path, fmt) {
+			let code = unsafe { CStr::from_ptr(params.code) };
+			if let Err(why) = file.write_all(code.to_bytes()) {
 				error!(
 					"Couldn't write to file made from lua path [{}]. {}",
-					path, why
+					params.path, why
 				);
 			}
 		}

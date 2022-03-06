@@ -1,0 +1,39 @@
+-- Emmylua Autorun definition.
+-- Feel free to use in your own plugins.
+
+---@class Autorun
+--- Logs a message to the Autorun console & Logging system (depending on severity)
+--- ## Levels
+--- * 5 - Trace
+--- * 4 - Debug
+--- * 3 - Info
+--- * 2 - Warning
+--- * 1 - Error
+---
+--- ## Example
+--- Logs a warning to the console
+--- ```lua
+--- Autorun.log("Restricted access to xyz!", 2)
+--- ```
+---@field log fun(message: string, severity: integer)
+--- Requires a lua file relative to autorun/scripts. Does not work with the plugin system yet.
+--- Pretty much gmod's include() function.
+--- ## Example
+--- ```lua
+--- local Ret = Autorun.require("bar.lua")
+--- ```
+---@field require fun(name: string): any
+---@field Plugin Plugin
+---@field NAME string # Name of script running
+---@field STARTUP boolean # True if script is running on autorun.lua
+---@field CODE string # Source code of script
+---@field CODE_LEN integer # Length of source code
+---@field IP string # IP Address of server
+Autorun = {}
+
+---@class Plugin
+---@field Settings table # Key value pairs settings retrieved from plugin.toml
+---@field VERSION string # Version of the plugin
+---@field AUTHOR string # Author of the plugin
+---@field NAME string # Display name of the plugin
+---@field DESCRIPTION string # Description of the plugin

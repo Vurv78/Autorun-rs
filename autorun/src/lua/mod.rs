@@ -25,43 +25,6 @@ pub struct AutorunEnv {
 	pub plugin: Option<crate::plugins::Plugin>,
 }
 
-impl AutorunEnv {
-	pub fn from_lua(state: LuaState) -> Option<Self> {
-		lua_getglobal(state, cstr!("sautorun"));
-		if lua_type(state, -1) == rglua::lua::TTABLE {
-			lua_getfield(state, -1, cstr!("STARTUP"));
-			let startup = lua_toboolean(state, -1) != 0;
-
-			lua_getfield(state, -1, cstr!("NAME"));
-			let identifier = lua_tostring(state, -1);
-
-			lua_getfield(state, -1, cstr!("CODE_LEN"));
-			let mut code_len = lua_tointeger(state, -1) as usize;
-
-			lua_getfield(state, -1, cstr!("CODE"));
-			let code = lua_tolstring(state, -1, &mut code_len);
-
-			lua_getfield(state, -1, cstr!("IP"));
-			let ip = lua_tostring(state, -1);
-
-			lua_pop(state, 6);
-
-			return Some(AutorunEnv {
-				is_autorun_file: false,
-				startup,
-				code,
-				identifier,
-				code_len,
-				ip,
-				plugin: None,
-			});
-		}
-
-		lua_pop(state, 1);
-		None
-	}
-}
-
 // Functions to interact with lua without triggering the detours
 pub fn compile<S: AsRef<str>>(l: LuaState, code: S) -> Result<(), &'static str> {
 	let s = code.as_ref();
@@ -172,13 +135,7 @@ pub fn run_prepare<S: AsRef<str>, F: Fn(LuaState)>(script: S, func: F) -> Result
 
 	func(l);
 
-	lua_pushvalue(l, -2); // stack[3] = stack[2]
-	lua_setfield(l, -3, cstr!("sautorun")); // stack[1].sautorun = table.remove(stack, 3)
 	lua_setfield(l, -2, cstr!("Autorun")); // stack[1].Autorun = table.remove(stack, 2)
-
-	// Backwards compatibility
-	// lua_getfield(l, -2, cstr!("Autorun"));
-	// lua_setfield(l, -2, cstr!("sautorun"));
 
 	// Create a metatable to make the env inherit from _G
 	lua_createtable(l, 0, 1); // stack[2] = {}
@@ -255,6 +212,13 @@ pub fn run_plugin<S: AsRef<str>>(script: S, env: &AutorunEnv, plugin: &Plugin) -
 		if let Ok(author) = CString::new( author.as_bytes() ) {
 			lua_pushstring(l, author.as_ptr());
 			lua_setfield(l, -2, cstr!("AUTHOR"));
+		}
+
+		if let Some(desc) = plugin.get_description() {
+			if let Ok(desc) = CString::new( desc.as_bytes() ) {
+				lua_pushstring(l, desc.as_ptr());
+				lua_setfield(l, -2, cstr!("DESCRIPTION"));
+			}
 		}
 
 		match plugin.get_settings().as_table() {

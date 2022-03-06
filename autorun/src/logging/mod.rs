@@ -1,7 +1,8 @@
 use simplelog::*;
 use std::fs::File;
 use thiserror::Error;
-use crate::configs;
+
+use crate::configs::{self, SETTINGS};
 
 #[cfg(not(feature = "logging"))]
 mod fallback;
@@ -24,6 +25,26 @@ pub enum LogInitError {
 
 #[cfg(feature = "logging")]
 pub fn init() -> Result<(), LogInitError> {
+	if !SETTINGS.logging.enabled {
+		let configs = ConfigBuilder::new()
+			.set_level_color(Level::Info, Some(Color::Cyan))
+			.set_level_color(Level::Error, Some(Color::Red))
+			.set_level_color(Level::Warn, Some(Color::Yellow))
+			.set_thread_mode(ThreadLogMode::Names)
+			.set_time_to_local(true)
+			.set_time_format_str("%I:%M:")
+			.build();
+
+		TermLogger::init(
+			LevelFilter::Info,
+			configs.clone(),
+			TerminalMode::Mixed,
+			ColorChoice::Never,
+		)?;
+
+		return Ok(())
+	}
+
 	let log_dir = configs::path(configs::LOG_DIR);
 
 	if !log_dir.exists() {

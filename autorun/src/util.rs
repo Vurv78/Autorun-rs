@@ -1,6 +1,5 @@
 use crate::{configs, logging::*};
 use std::fs::{self, File};
-use std::path::PathBuf;
 
 #[derive(Debug, thiserror::Error)]
 pub enum HandleError {
@@ -17,14 +16,14 @@ pub enum HandleError {
 /// * `server_ip` - The ip of the server. This will be used to create the folder structure of HOME/autorun/lua_dumps/IP/...
 /// # Returns
 /// File created at the final dir.
-pub fn get_handle<S: AsRef<str>>(location: &str, server_ip: S) -> Result<File, HandleError> {
+pub fn get_handle<S: AsRef<str>>(location: &str, fmt: S) -> Result<File, HandleError> {
 	if location.len() >= 500 {
 		return Err(HandleError::TooLong);
 	};
 
-	let server_ip = server_ip.as_ref();
+	let fmt = fmt.as_ref();
 	let file_loc = &*configs::path(configs::DUMP_DIR)
-		.join(strip_invalid(server_ip));
+		.join(strip_invalid(fmt));
 
 	let mut path = file_loc.join(location);
 

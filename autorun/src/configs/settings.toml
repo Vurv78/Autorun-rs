@@ -1,0 +1,22 @@
+[autorun]
+# Whether to hide on startup
+hide = false
+
+[plugins]
+# Whether to run saved plugins
+enabled = true
+
+[logging]
+# Whether to disable saving log files to disk in autorun/logs
+# Will still print info/errors to your console
+enabled = true
+
+[filesteal]
+# Whether to save lua files from detours in autorun/lua_dumps
+enabled = true
+
+# Format to use when saving folders
+# Valid tags:
+# <ip> IP Address of the server (with port)
+# <hostname> Hostname of the server (Currently will just return CLIENT, so don't use.)
+format = "<ip>"

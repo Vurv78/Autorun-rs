@@ -1,4 +1,4 @@
-use crate::{lua, logging::*};
+use crate::{lua, configs::SETTINGS, logging::*};
 use autorun_shared::Realm;
 
 use std::path::Path;
@@ -19,11 +19,63 @@ pub fn init() {
 		Type 'help' for a list of commands.
 	");
 
-	std::thread::spawn(|| loop {
-		if let Err(why) = try_process_input() {
-			warn!("Failed to process console input; {}", why);
+	let hidden = SETTINGS.autorun.hide;
+
+	std::thread::spawn(move || {
+		if hidden {
+			hide_console();
+		}
+
+		loop {
+			if let Err(why) = try_process_input() {
+				warn!("Failed to process console input; {}", why);
+			}
 		}
 	});
+}
+
+pub fn hide_console() {
+	use std::sync::atomic::{AtomicPtr, Ordering};
+	use winapi::um::{
+		wincon::GetConsoleWindow,
+		winuser::{ShowWindow, SW_HIDE, SW_SHOW},
+	};
+
+	let wind = unsafe { GetConsoleWindow() };
+	unsafe { ShowWindow(wind, SW_HIDE) };
+
+	match systrayx::Application::new() {
+		Ok(mut app) => {
+			let icon = include_bytes!("../../../assets/run.ico");
+			match app.set_icon_from_buffer(icon, 32, 32) {
+				Ok(_) => (),
+				Err(why) => error!("Failed to set icon: {}", why),
+			}
+
+			let ptr = AtomicPtr::new(wind);
+
+			let res = app.add_menu_item("Open", move |x| {
+				let a = ptr.load(Ordering::Relaxed);
+				unsafe { ShowWindow(a, SW_SHOW) };
+
+				x.quit();
+				Ok::<_, systrayx::Error>(())
+			});
+
+			match res {
+				Ok(_) => {
+					match app.wait_for_message() {
+						Ok(_) => (),
+						Err(why) => error!("Error waiting for message: {}", why),
+					}
+				},
+				Err(why) => error!("Failed to add menu item: {why}"),
+			}
+		},
+		Err(why) => {
+			error!("Failed to create systray app! {why}")
+		}
+	}
 }
 
 pub(crate) fn try_process_input() -> std::io::Result<()> {
@@ -65,32 +117,8 @@ pub(crate) fn try_process_input() -> std::io::Result<()> {
 			}
 		},
 
-		"hide" => unsafe {
-			use std::sync::atomic::{AtomicPtr, Ordering};
-			use winapi::um::{
-				wincon::GetConsoleWindow,
-				winuser::{ShowWindow, SW_HIDE, SW_SHOW},
-			};
-
-			let wind = GetConsoleWindow();
-			ShowWindow(wind, SW_HIDE);
-
-			let mut tray = systrayx::Application::new().expect("Failed to create new systrayx app");
-			tray.set_icon_from_buffer(&include_bytes!("../../../assets/run.ico")[..], 32, 32)
-				.expect("Failed to set icon");
-
-			let ptr = AtomicPtr::new(wind);
-
-			tray.add_menu_item("Open", move |x| {
-				let a = ptr.load(Ordering::Relaxed);
-				ShowWindow(a, SW_SHOW);
-
-				x.quit();
-				Ok::<_, systrayx::Error>(())
-			})
-			.expect("Couldn't add menu item");
-
-			tray.wait_for_message().unwrap();
+		"hide" => {
+			hide_console();
 		},
 
 		"help" => {
@@ -105,9 +133,14 @@ pub(crate) fn try_process_input() -> std::io::Result<()> {
 
 				help                           | Prints this out.
 				hide                           | Hides the console, but remains active.
+				settings                       | Prints your current settings.
 				---
 			");
-		}
+		},
+
+		"settings" => {
+			println!("{:#?}", *SETTINGS);
+		},
 
 		msg => {
 			if msg.trim().is_empty() {

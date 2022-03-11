@@ -40,27 +40,29 @@ pub struct Plugin {
 
 impl Plugin {
 	pub fn get_name(&self) -> &String {
-		return &self.data.plugin.name;
+		&self.data.plugin.name
 	}
 
 	pub fn get_author(&self) -> &String {
-		return &self.data.plugin.author;
+		&self.data.plugin.author
 	}
 
 	pub fn get_version(&self) -> &String {
-		return &self.data.plugin.version;
+		&self.data.plugin.version
 	}
 
 	pub fn get_description(&self) -> &Option<String> {
-		return &self.data.plugin.description;
+		&self.data.plugin.description
 	}
 
 	pub fn get_settings(&self) -> &toml::Value {
-		return &self.data.settings;
+		&self.data.settings
 	}
 
+	// Will use later in getting Autorun.require to work relative.
+	#[allow(unused)]
 	pub fn get_path(&self) -> &PathBuf {
-		return &self.dir;
+		&self.dir
 	}
 
 	pub fn has_file<N: AsRef<str>>(&self, name: N) -> bool {
@@ -92,7 +94,7 @@ pub fn sanity_check() -> Result<(), PluginError> {
 
 				let path_name = path.file_name()
 					.map(|x| x.to_string_lossy())
-					.unwrap_or( std::borrow::Cow::Owned( path.display().to_string() ) );
+					.unwrap_or_else(|| std::borrow::Cow::Owned( path.display().to_string() ) );
 
 				if plugin_toml.exists() && (src_autorun.exists() || src_hooks.exists()) {
 					let content = std::fs::read_to_string(plugin_toml)?;
@@ -114,8 +116,11 @@ pub fn sanity_check() -> Result<(), PluginError> {
 	Ok(())
 }
 
+// (Directory, PluginOrError)
+type PluginFS = (String, Result<Plugin, PluginError>);
+
 /// Finds all valid plugins (has plugin.toml, src/autorun.lua or src/hook.lua)
-pub fn find() -> Result<Vec<(String, Result<Plugin, PluginError>)>, PluginError> {
+pub fn find() -> Result<Vec<PluginFS>, PluginError> {
 	let mut plugins = vec![];
 
 	let dir = std::fs::read_dir( configs::path(PLUGIN_DIR) )?;
@@ -126,7 +131,7 @@ pub fn find() -> Result<Vec<(String, Result<Plugin, PluginError>)>, PluginError>
 				let path_name = path
 					.file_name()
 					.map(|x| x.to_string_lossy().to_string())
-					.unwrap_or( path.display().to_string() );
+					.unwrap_or_else(|| path.display().to_string() );
 
 				if path.is_dir() {
 					let plugin_toml = path.join("plugin.toml");
@@ -193,16 +198,16 @@ pub fn init() -> Result<(), PluginError> {
 	sanity_check()?;
 
 	let plugins = find()?;
-	if plugins.len() > 0 {
-		println!("<====> Loading Plugins <====>");
+	if !plugins.is_empty() {
+		println!("<====> Verifying Plugins <====>");
 	} else {
 		println!("<====> No Plugins Found! <====>");
 	}
 
 	for plugin in plugins {
 		match plugin {
-			(name, Err(why)) => error!("Failed to load plugin @plugins/{name}: {}", why),
-			(_, Ok(plugin)) => info!("Loaded plugin: {}", plugin.get_name())
+			(name, Err(why)) => error!("Failed to verify plugin @plugins/{name}: {}", why),
+			(_, Ok(plugin)) => info!("Verified plugin: {}", plugin.get_name())
 		}
 	}
 

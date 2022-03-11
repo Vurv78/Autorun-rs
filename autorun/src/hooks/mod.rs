@@ -4,7 +4,7 @@ use std::{fs, sync::atomic::Ordering};
 use std::sync::atomic::AtomicU64;
 
 use crate::plugins;
-use crate::{configs::{self, SETTINGS}, global, lua::{self, AutorunEnv}, util, logging};
+use crate::{configs::{self, SETTINGS}, lua::{self, AutorunEnv}, util, logging};
 
 use logging::*;
 use rglua::interface;
@@ -15,19 +15,35 @@ pub mod lazy;
 
 // Make our own static detours because detours.rs is lame and locked theirs behind nightly. :)
 lazy_detour! {
-	pub static LUAL_LOADBUFFERX_H: extern "C" fn(LuaState, *const i8, SizeT, *const i8, *const i8) -> i32 =
-		(*LUA_SHARED_RAW.get::<extern "C" fn(LuaState, LuaString, SizeT, LuaString, LuaString) -> i32>(b"luaL_loadbufferx").unwrap(), loadbufferx_h);
+	pub static LUAL_LOADBUFFERX_H: extern "C" fn(LuaState, *const i8, SizeT, *const i8, *const i8) -> i32 = (
+		{
+			*LUA_SHARED_RAW.get::<extern "C" fn(LuaState, LuaString, SizeT, LuaString, LuaString) -> i32>(b"luaL_loadbufferx")
+			.unwrap()
+		},
+		loadbufferx_h
+	);
+
+	#[cfg(feature = "runner")]
+	#[cfg(not(all(target_os = "windows", target_arch = "x86")))]
+	pub static PAINT_TRAVERSE_H: PaintTraverseFn = (
+		{
+			let vgui = iface!(Panel).expect("Failed to get Panel interface");
+			std::mem::transmute::<_, PaintTraverseFn>(
+				(vgui.vtable as *mut *mut c_void)
+					.offset(41)
+					.read(),
+			)
+		},
+		paint_traverse_h
+	);
 }
 
 #[cfg(feature = "runner")]
+#[cfg(not(all(target_os = "windows", target_arch = "x86")))]
 use rglua::interface::Panel;
 
+#[cfg(not(all(target_os = "windows", target_arch = "x86")))]
 type PaintTraverseFn = extern "fastcall" fn(&'static Panel, usize, bool, bool);
-
-#[cfg(feature = "runner")]
-lazy_detour! {
-	static PAINT_TRAVERSE_H: PaintTraverseFn;
-}
 
 static CONNECTED: AtomicU64 = AtomicU64::new(99999);
 
@@ -44,7 +60,7 @@ pub struct DispatchParams<'a> {
 	net: &'a mut interface::NetChannelInfo,
 }
 
-fn loadbufferx_hook(l: LuaState, code: LuaString, len: usize, identifier: LuaString, mode: LuaString) -> Result<i32, interface::Error> {
+fn loadbufferx_hook(l: LuaState, code: LuaString, code_len: usize, identifier: LuaString, mode: LuaString) -> Result<i32, interface::Error> {
 	let mut engine = iface!(EngineClient)?;
 
 	let do_run;
@@ -71,15 +87,15 @@ fn loadbufferx_hook(l: LuaState, code: LuaString, len: usize, identifier: LuaStr
 
 			// There's way too many params here
 			let params = DispatchParams {
-				ip: LuaString::from(ip),
-				code: code,
-				code_len: len,
-				identifier: identifier,
+				ip,
+				code,
+				code_len,
+				identifier,
 				startup,
 				path,
 
 				engine: &mut engine,
-				net: net
+				net
 			};
 
 			do_run = dispatch(l, params);
@@ -90,7 +106,7 @@ fn loadbufferx_hook(l: LuaState, code: LuaString, len: usize, identifier: LuaStr
 	}
 
 	unsafe {
-		Ok(LUAL_LOADBUFFERX_H.call(l, code, len, identifier, mode))
+		Ok(LUAL_LOADBUFFERX_H.call(l, code, code_len, identifier, mode))
 	}
 }
 
@@ -225,17 +241,17 @@ pub fn dispatch(l: LuaState, mut params: DispatchParams) -> bool {
 }
 
 #[cfg(feature = "runner")]
+#[cfg(not(all(target_os = "windows", target_arch = "x86")))]
 extern "fastcall" fn paint_traverse_h(
 	this: &'static Panel,
 	panel_id: usize,
 	force_repaint: bool,
 	force_allow: bool,
 ) {
+	use crate::global;
+
 	unsafe {
-		PAINT_TRAVERSE_H
-			.get()
-			.unwrap()
-			.call(this, panel_id, force_repaint, force_allow);
+		PAINT_TRAVERSE_H.call(this, panel_id, force_repaint, force_allow);
 	}
 
 	let script_queue = &mut *global::LUA_SCRIPTS.lock().unwrap();
@@ -246,6 +262,7 @@ extern "fastcall" fn paint_traverse_h(
 		let lua = iface!(LuaShared);
 		match lua {
 			Ok(lua) => {
+				println!("Lua: {lua:p}");
 				let iface = lua.GetLuaInterface( realm.into() );
 				if let Some(iface) = unsafe { iface.as_mut() } {
 					debug!("Got {realm} iface!");
@@ -276,31 +293,7 @@ pub enum HookingError {
 	Detour(#[from] detour::Error),
 
 	#[error("Failed to get interface")]
-	Interface(#[from] rglua::interface::Error),
-
-	#[error("Failed to set hook")]
-	SetHook,
-}
-
-#[cfg(feature = "runner")]
-unsafe fn init_paint_traverse() -> Result<(), HookingError> {
-	let vgui = iface!(Panel)?;
-	// Get painttraverse raw function object to detour.
-	let painttraverse: PaintTraverseFn = std::mem::transmute(
-		(vgui.vtable as *mut *mut c_void)
-			.offset(41)
-			.read(),
-	);
-
-	let detour = detour::GenericDetour::new(painttraverse, paint_traverse_h)?;
-
-	if let Err(_) = PAINT_TRAVERSE_H.set(detour) {
-		return Err(HookingError::SetHook);
-	}
-
-	PAINT_TRAVERSE_H.get().unwrap().enable()?;
-
-	Ok(())
+	Interface(#[from] rglua::interface::Error)
 }
 
 pub fn init() -> Result<(), HookingError> {
@@ -309,7 +302,8 @@ pub fn init() -> Result<(), HookingError> {
 	Lazy::force(&LUAL_LOADBUFFERX_H);
 
 	#[cfg(feature = "runner")]
-	unsafe { init_paint_traverse() }?;
+	#[cfg(not(all(target_os = "windows", target_arch = "x86")))]
+	Lazy::force(&PAINT_TRAVERSE_H);
 
 	Ok(())
 }
@@ -319,7 +313,8 @@ pub fn cleanup() -> Result<(), detour::Error> {
 		LUAL_LOADBUFFERX_H.disable()?;
 
 		#[cfg(feature = "runner")]
-		PAINT_TRAVERSE_H.get().unwrap().disable()?;
+		#[cfg(not(all(target_os = "windows", target_arch = "x86")))]
+		PAINT_TRAVERSE_H.disable()?;
 	}
 
 	Ok(())

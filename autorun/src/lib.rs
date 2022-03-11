@@ -53,6 +53,7 @@ pub fn main(l: LuaState) -> i32 {
 
 #[gmod_close]
 pub fn close(_l: LuaState) -> i32 {
+	#[cfg(not(feature = "inject"))]
 	if let Err(why) = cross::cleanup() {
 		error!("Failed to cleanup at gmod13_close: {}", why);
 	}

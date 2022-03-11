@@ -1,6 +1,7 @@
 use std::ffi::CString;
 
-use crate::{hooks, lua, logging::*, global, plugins::Plugin};
+use crate::{hooks, lua, logging::*, plugins::Plugin};
+
 use autorun_shared::Realm;
 use rglua::prelude::*;
 
@@ -89,11 +90,17 @@ pub enum RunError {
 	NoInterface(#[from] rglua::interface::Error),
 
 	#[error("Failed to get lua interface")]
+	#[cfg(feature = "runner")]
+	#[cfg(not(all(target_os = "windows", target_arch = "x86")))]
 	NoLuaInterface,
 }
 
 // TODO: Might be able to make this synchronous by using LuaInterface.RunString (But that might also trigger detours..)
+#[cfg(feature = "runner")]
+#[cfg(not(all(target_os = "windows", target_arch = "x86")))]
 pub fn run(realm: Realm, code: String) -> Result<(), RunError> {
+	use crate::global;
+
 	// Check if lua state is valid for instant feedback
 	let lua = rglua::iface!(LuaShared)?;
 	let cl = lua.GetLuaInterface(realm.into());
@@ -114,6 +121,8 @@ pub fn run(realm: Realm, code: String) -> Result<(), RunError> {
 /// Runs a lua script after running the provided preparation closure (to add variables to the env, etc)
 pub fn run_prepare<S: AsRef<str>, F: Fn(LuaState)>(script: S, func: F) -> Result<i32, LuaEnvError> {
 	let lua = iface!(LuaShared)?;
+	println!("Lua: {lua:p}");
+
 	let iface = lua.GetLuaInterface(Realm::Client.into());
 	let iface = unsafe { iface.as_mut() }.ok_or(LuaEnvError::NoState)?;
 
@@ -122,6 +131,8 @@ pub fn run_prepare<S: AsRef<str>, F: Fn(LuaState)>(script: S, func: F) -> Result
 	if l.is_null() {
 		return Err(LuaEnvError::NoState);
 	}
+
+	println!("LuaShared: {l:p}");
 
 	let top = lua_gettop(l);
 

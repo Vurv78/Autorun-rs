@@ -37,7 +37,7 @@ pub fn init() -> Result<(), LogInitError> {
 
 		TermLogger::init(
 			LevelFilter::Info,
-			configs.clone(),
+			configs,
 			TerminalMode::Mixed,
 			ColorChoice::Never,
 		)?;

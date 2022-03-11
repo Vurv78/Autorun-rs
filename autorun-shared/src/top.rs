@@ -30,9 +30,9 @@ impl From<u8> for Realm {
 	}
 }
 
-impl Into<u8> for Realm {
-	fn into(self) -> u8 {
-		match self {
+impl From<Realm> for u8 {
+	fn from(r: Realm) -> u8 {
+		match r {
 			Realm::Client => 0,
 			Realm::Server => 1,
 			Realm::Menu => 2

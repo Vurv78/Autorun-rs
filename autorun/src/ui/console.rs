@@ -105,7 +105,6 @@ fn start() {
 		"Runs a lua script from the menu",
 		|_, _, rest| {
 			lua::run(Realm::Menu, rest.to_owned())?;
-			//println!("Hello world! {rest}");
 			Ok(())
 		}
 	));

@@ -262,7 +262,6 @@ extern "fastcall" fn paint_traverse_h(
 		let lua = iface!(LuaShared);
 		match lua {
 			Ok(lua) => {
-				println!("Lua: {lua:p}");
 				let iface = lua.GetLuaInterface( realm.into() );
 				if let Some(iface) = unsafe { iface.as_mut() } {
 					debug!("Got {realm} iface!");

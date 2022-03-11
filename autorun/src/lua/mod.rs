@@ -121,7 +121,6 @@ pub fn run(realm: Realm, code: String) -> Result<(), RunError> {
 /// Runs a lua script after running the provided preparation closure (to add variables to the env, etc)
 pub fn run_prepare<S: AsRef<str>, F: Fn(LuaState)>(script: S, func: F) -> Result<i32, LuaEnvError> {
 	let lua = iface!(LuaShared)?;
-	println!("Lua: {lua:p}");
 
 	let iface = lua.GetLuaInterface(Realm::Client.into());
 	let iface = unsafe { iface.as_mut() }.ok_or(LuaEnvError::NoState)?;
@@ -131,8 +130,6 @@ pub fn run_prepare<S: AsRef<str>, F: Fn(LuaState)>(script: S, func: F) -> Result
 	if l.is_null() {
 		return Err(LuaEnvError::NoState);
 	}
-
-	println!("LuaShared: {l:p}");
 
 	let top = lua_gettop(l);
 

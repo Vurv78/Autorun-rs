@@ -4,11 +4,12 @@
 use rglua::prelude::*;
 
 mod configs;
+
 #[macro_use]
 mod logging;
+
 mod ui;
 mod cross;
-mod global;
 mod hooks;
 mod lua;
 mod util;
@@ -24,12 +25,12 @@ extern "system" fn DllMain(_: *const u8, reason: u32, _: *const u8) -> u32 {
 	match reason {
 		DLL_PROCESS_ATTACH => {
 			if let Err(why) = cross::startup() {
-				error!("Failed to start: {}", why);
+				format!("Failed to start: {why}");
 			}
 		}
 		DLL_PROCESS_DETACH => {
 			if let Err(why) = cross::cleanup() {
-				error!("Failed to cleanup: {}", why);
+				error!("Failed to cleanup: {why}");
 			}
 		}
 		_ => (),
@@ -45,7 +46,7 @@ pub fn main(l: LuaState) -> i32 {
 	#[cfg(not(feature = "inject"))]
 	if let Err(why) = cross::startup() {
 		printgm!(l, "Failed to start Autorun: `{}`", why);
-		error!("Failed to start Autorun: `{}`", why)
+		error!("Failed to start Autorun: `{}`", why);
 	}
 
 	0

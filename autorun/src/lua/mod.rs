@@ -1,4 +1,4 @@
-use std::ffi::CString;
+use std::{ffi::CString, borrow::Cow, sync::atomic::{AtomicPtr, Ordering, AtomicI32}};
 
 use crate::{hooks, lua, logging::*, plugins::Plugin};
 
@@ -7,6 +7,25 @@ use rglua::prelude::*;
 
 mod env;
 mod err;
+mod fs;
+
+#[cfg(feature = "runner")]
+#[cfg(not(all(target_os = "windows", target_arch = "x86")))]
+use std::sync::{Arc, Mutex};
+
+#[cfg(feature = "runner")]
+#[cfg(not(all(target_os = "windows", target_arch = "x86")))]
+use once_cell::sync::Lazy;
+
+#[cfg(feature = "runner")]
+#[cfg(not(all(target_os = "windows", target_arch = "x86")))]
+type LuaScript = Vec<(autorun_shared::Realm, String)>;
+
+// Scripts waiting to be ran in painttraverse
+#[cfg(feature = "runner")]
+#[cfg(not(all(target_os = "windows", target_arch = "x86")))]
+pub static SCRIPT_QUEUE: Lazy<Arc<Mutex<LuaScript>>> =
+	Lazy::new(|| Arc::new(Mutex::new(Vec::new())));
 
 pub struct AutorunEnv {
 	// Whether this is the autorun.lua file
@@ -27,7 +46,7 @@ pub struct AutorunEnv {
 }
 
 // Functions to interact with lua without triggering the detours
-pub fn compile<S: AsRef<str>>(l: LuaState, code: S) -> Result<(), &'static str> {
+pub fn compile<S: AsRef<str>>(l: LuaState, code: S) -> Result<(), Cow<'static, str>> {
 	let s = code.as_ref();
 	unsafe {
 		if hooks::LUAL_LOADBUFFERX_H.call(
@@ -38,7 +57,7 @@ pub fn compile<S: AsRef<str>>(l: LuaState, code: S) -> Result<(), &'static str> 
 			cstr!("bt"),
 		) != OK
 		{
-			return Err(get_lua_error(l).expect("Couldn't get lua error"));
+			return Err(get_lua_error(l));
 		}
 	}
 
@@ -47,26 +66,37 @@ pub fn compile<S: AsRef<str>>(l: LuaState, code: S) -> Result<(), &'static str> 
 
 // Helpers
 
-pub unsafe fn get_lua_error(l: LuaState) -> Option<&'static str> {
+pub unsafe fn get_lua_error(l: LuaState) -> Cow<'static, str> {
 	let err = lua_tostring(l, -1);
-
 	lua_pop(l, 1);
-	Some(try_rstr!(err).unwrap_or("UTF8 Error"))
+
+	let err = std::ffi::CStr::from_ptr(err);
+	err.to_string_lossy()
 }
 
-pub fn dostring<S: AsRef<str>>(l: LuaState, script: S) -> Result<(), &'static str> {
+pub fn dostring<S: AsRef<str>>(l: LuaState, script: S) -> Result<(), Cow<'static, str>> {
 	compile(l, script)?;
 	pcall(l)?;
 	Ok(())
 }
 
-pub fn pcall(l: LuaState) -> Result<(), &'static str> {
+pub fn pcall(l: LuaState) -> Result<(), Cow<'static, str>> {
 	if lua_pcall(l, 0, lua::MULTRET, 0) != OK {
 		unsafe {
-			return Err(get_lua_error(l).expect("Failed to get lua error in pcall"));
+			return Err(get_lua_error(l));
 		}
 	}
 	Ok(())
+}
+
+#[inline(always)]
+pub fn get_state(realm: Realm) -> Result<LuaState, rglua::interface::Error> {
+	let engine = iface!(LuaShared)?;
+
+	let iface = unsafe { engine.GetLuaInterface( realm.into() ).as_mut() }
+		.ok_or(rglua::interface::Error::AsMut)?;
+
+	Ok(iface.base as LuaState)
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -95,14 +125,11 @@ pub enum RunError {
 	NoLuaInterface,
 }
 
-// TODO: Might be able to make this synchronous by using LuaInterface.RunString (But that might also trigger detours..)
 #[cfg(feature = "runner")]
 #[cfg(not(all(target_os = "windows", target_arch = "x86")))]
 pub fn run(realm: Realm, code: String) -> Result<(), RunError> {
-	use crate::global;
-
 	// Check if lua state is valid for instant feedback
-	let lua = rglua::iface!(LuaShared)?;
+	let lua = iface!(LuaShared)?;
 	let cl = lua.GetLuaInterface(realm.into());
 	if !cl.is_null() {
 		debug!("Got {realm} interface for run");
@@ -110,27 +137,16 @@ pub fn run(realm: Realm, code: String) -> Result<(), RunError> {
 		return Err(RunError::NoLuaInterface);
 	}
 
-	match &mut global::LUA_SCRIPTS.try_lock() {
+	match &mut SCRIPT_QUEUE.try_lock() {
 		Ok(script_queue) => script_queue.push((realm, code)),
-		Err(why) => error!("Failed to lock lua_scripts mutex. {}", why),
+		Err(why) => error!("Failed to lock script queue mutex. {why}"),
 	};
 
 	Ok(())
 }
 
 /// Runs a lua script after running the provided preparation closure (to add variables to the env, etc)
-pub fn run_prepare<S: AsRef<str>, F: Fn(LuaState)>(script: S, func: F) -> Result<i32, LuaEnvError> {
-	let lua = iface!(LuaShared)?;
-
-	let iface = lua.GetLuaInterface(Realm::Client.into());
-	let iface = unsafe { iface.as_mut() }.ok_or(LuaEnvError::NoState)?;
-
-	let l = iface.base as LuaState;
-
-	if l.is_null() {
-		return Err(LuaEnvError::NoState);
-	}
-
+pub fn run_prepare<S: AsRef<str>, F: Fn(LuaState)>(l: LuaState, script: S, func: F) -> Result<i32, LuaEnvError> {
 	let top = lua_gettop(l);
 
 	if let Err(why) = lua::compile(l, script) {
@@ -154,15 +170,15 @@ pub fn run_prepare<S: AsRef<str>, F: Fn(LuaState)>(script: S, func: F) -> Result
 	lua_setfenv(l, -2); // setfenv(l, table.remove(stack, 1))
 
 	if let Err(why) = lua::pcall(l) {
-		return Err(LuaEnvError::Runtime(why.to_owned()));
+		return Err(LuaEnvError::Runtime(why.to_string()));
 	}
 
 	Ok(top)
 }
 
 // Runs lua, but inside of the `autorun` environment.
-pub fn run_env_prep<S: AsRef<str>, F: Fn(LuaState)>(script: S, env: &AutorunEnv, prep: Option<F>) -> Result<i32, LuaEnvError> {
-	run_prepare(script, |l| {
+pub fn run_env_prep<S: AsRef<str>, F: Fn(LuaState)>(l: LuaState, script: S, env: &AutorunEnv, prep: Option<F>) -> Result<i32, LuaEnvError> {
+	run_prepare(l, script, |l| {
 		// Autorun located at -2
 
 		lua_pushstring(l, env.identifier); // stack[3] = identifier
@@ -183,7 +199,8 @@ pub fn run_env_prep<S: AsRef<str>, F: Fn(LuaState)>(script: S, env: &AutorunEnv,
 
 		let fns = reg! [
 			"log" => env::log,
-			"require" => env::require
+			"require" => env::require,
+			"print" => env::print
 		];
 
 		luaL_register(l, std::ptr::null_mut(), fns.as_ptr());
@@ -194,12 +211,12 @@ pub fn run_env_prep<S: AsRef<str>, F: Fn(LuaState)>(script: S, env: &AutorunEnv,
 	})
 }
 
-pub fn run_env<S: AsRef<str>>(script: S, env: &AutorunEnv) -> Result<i32, LuaEnvError> {
-	run_env_prep::<S, fn(LuaState)>(script, env, None)
+pub fn run_env<S: AsRef<str>>(l: LuaState, script: S, env: &AutorunEnv) -> Result<i32, LuaEnvError> {
+	run_env_prep::<S, fn(LuaState)>(l, script, env, None)
 }
 
-pub fn run_plugin<S: AsRef<str>>(script: S, env: &AutorunEnv, plugin: &Plugin) -> Result<i32, LuaEnvError> {
-	run_env_prep(script, env, Some(|l| {
+pub fn run_plugin<S: AsRef<str>>(l: LuaState, script: S, env: &AutorunEnv, plugin: &Plugin) -> Result<i32, LuaEnvError> {
+	run_env_prep(l, script, env, Some(|l| {
 		// print(Autorun.Plugin.NAME, Autorun.Plugin.VERSION)
 
 		lua_createtable(l, 0, 4);

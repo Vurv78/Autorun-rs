@@ -1,9 +1,9 @@
 use crate::{ui, hooks::{self, HookingError}, logging, plugins::{self, PluginError}};
+use colored::Colorize;
 use logging::*;
 
 #[derive(Debug, thiserror::Error)]
 pub enum StartError {
-	#[cfg(feature = "logging")]
 	#[error("Failed to start logger `{0}`")]
 	LoggingStart(#[from] logging::LogInitError),
 
@@ -31,7 +31,6 @@ pub fn startup() -> Result<(), StartError> {
 		debug!("Starting: UI");
 		ui::init();
 
-		#[cfg(feature = "logging")]
 		logging::init()?;
 
 		debug!("Starting: Hooks");

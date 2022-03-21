@@ -1,4 +1,3 @@
-#[macro_export]
 macro_rules! lazy_detour {
 	// Lazy Path
 	( $(#[$m:meta])* $vis:vis static $name:ident : $t:ty = ($target:expr, $tour:expr) ; $($rest:tt)* ) => {
@@ -16,3 +15,4 @@ macro_rules! lazy_detour {
 	};
 	() => ();
 }
+pub(crate) use lazy_detour;

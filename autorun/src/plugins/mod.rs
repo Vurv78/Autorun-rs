@@ -1,5 +1,7 @@
+use rglua::types::LuaState;
+
 use crate::lua::{self, AutorunEnv, LuaEnvError};
-use crate::{logging::*, configs};
+use crate::{logging::*, configs, ui::{printcol, formatcol}};
 use crate::configs::PLUGIN_DIR;
 
 use std::path::PathBuf;
@@ -71,10 +73,10 @@ impl Plugin {
 		path.exists()
 	}
 
-	pub fn dofile<N: AsRef<str>>(&self, name: N, env: &AutorunEnv) -> Result<(), PluginError> {
+	pub fn dofile<N: AsRef<str>>(&self, l: LuaState, name: N, env: &AutorunEnv) -> Result<(), PluginError> {
 		let src = std::fs::read_to_string( self.dir.join(name.as_ref()) )?;
 
-		lua::run_plugin(&src, env, self)?;
+		lua::run_plugin(l, &src, env, self)?;
 
 		Ok(())
 	}
@@ -159,12 +161,12 @@ pub fn find() -> Result<Vec<PluginFS>, PluginError> {
 }
 
 /// Run ``autorun.lua`` in all plugins.
-pub fn call_autorun(env: &AutorunEnv) -> Result<(), PluginError> {
+pub fn call_autorun(l: LuaState, env: &AutorunEnv) -> Result<(), PluginError> {
 	for (dirname, plugin) in find()? {
 		match plugin {
 			Ok(plugin) => {
 				if plugin.has_file("src/autorun.lua") {
-					if let Err(why) = plugin.dofile("src/autorun.lua", env) {
+					if let Err(why) = plugin.dofile(l, "src/autorun.lua", env) {
 						error!("Failed to run plugin '{}': {}", plugin.get_name(), why);
 					};
 				}
@@ -180,10 +182,10 @@ pub fn call_autorun(env: &AutorunEnv) -> Result<(), PluginError> {
 
 /// Run ``hook.lua`` in all plugins.
 /// Does not print out any errors unlike call_autorun.
-pub fn call_hook(env: &AutorunEnv) -> Result<(), PluginError> {
+pub fn call_hook(l: LuaState, env: &AutorunEnv) -> Result<(), PluginError> {
 	for plugin in find()? {
 		if let (_, Ok(plugin)) = plugin {
-			let _ = plugin.dofile("src/hook.lua", env);
+			let _ = plugin.dofile(l, "src/hook.lua", env);
 		}
 	}
 	Ok(())
@@ -198,10 +200,10 @@ pub fn init() -> Result<(), PluginError> {
 	sanity_check()?;
 
 	let plugins = find()?;
-	if !plugins.is_empty() {
-		println!("<====> Verifying Plugins <====>");
-	} else {
-		println!("<====> No Plugins Found! <====>");
+
+	printcol!(WHITE, "Verifying plugins..");
+	if plugins.is_empty() {
+		printcol!(WHITE, on_green, "{}", "No plugins found!");
 	}
 
 	for plugin in plugins {

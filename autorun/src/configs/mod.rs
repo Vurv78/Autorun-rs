@@ -7,7 +7,6 @@ macro_rules! adir {
 }
 
 pub const DUMP_DIR: &str = concat!(adir!(), "/lua_dumps");
-#[cfg(feature = "logging")]
 pub const LOG_DIR: &str = concat!(adir!(), "/logs");
 pub const INCLUDE_DIR: &str = concat!(adir!(), "/scripts");
 pub const PLUGIN_DIR: &str = concat!(adir!(), "/plugins");

@@ -1,32 +1,17 @@
-use simplelog::*;
-use std::fs::File;
+use async_fs::File;
 use thiserror::Error;
 
 use crate::configs::{self, SETTINGS};
 
-#[cfg(not(feature = "logging"))]
-mod fallback;
-
-#[cfg(not(feature = "logging"))]
-pub use fallback::*;
-
-#[cfg(feature = "logging")]
-pub use log::{info, error, warn, debug, trace};
-
 #[derive(Error, Debug)]
 pub enum LogInitError {
-	#[error("{0}")]
-	#[cfg(feature = "logging")]
-	Logger(#[from] log::SetLoggerError),
-
 	#[error("Failed to create log file: {0}")]
 	File(#[from] std::io::Error),
 }
 
-#[cfg(feature = "logging")]
 pub fn init() -> Result<(), LogInitError> {
 	if !SETTINGS.logging.enabled {
-		let configs = ConfigBuilder::new()
+		/*let configs = ConfigBuilder::new()
 			.set_level_color(Level::Info, Some(Color::Cyan))
 			.set_level_color(Level::Error, Some(Color::Red))
 			.set_level_color(Level::Warn, Some(Color::Yellow))
@@ -40,7 +25,7 @@ pub fn init() -> Result<(), LogInitError> {
 			configs,
 			TerminalMode::Mixed,
 			ColorChoice::Never,
-		)?;
+		)?;*/
 
 		return Ok(())
 	}
@@ -56,9 +41,10 @@ pub fn init() -> Result<(), LogInitError> {
 		chrono::Local::now().format("%B %d, %Y %I-%M %P")
 	));
 
-	let log_file_handle = File::create(&log_path)?;
+	// Create file synchronously since we're only gonna do this once
+	let log_file_handle = std::fs::File::create(&log_path)?;
 
-	let configs = ConfigBuilder::new()
+	/*let configs = ConfigBuilder::new()
 		.set_level_color(Level::Info, Some(Color::Cyan))
 		.set_level_color(Level::Error, Some(Color::Red))
 		.set_level_color(Level::Warn, Some(Color::Yellow))
@@ -83,7 +69,51 @@ pub fn init() -> Result<(), LogInitError> {
 			configs,
 			log_file_handle,
 		)
-	])?;
+	])?;*/
 
 	Ok(())
 }
+
+macro_rules! warning {
+	($($arg:tt)+) => {
+		$crate::ui::printwarning!( normal, $($arg)+ )
+	};
+}
+
+pub(crate) use warning;
+
+macro_rules! trace {
+	( $($arg:tt)+ ) => {()};
+}
+pub(crate) use trace;
+
+// Regular stdout
+macro_rules! info {
+	( $($arg:tt)+ ) => {
+		$crate::ui::printinfo!( normal, $($arg)+ )
+	};
+}
+pub(crate) use info;
+
+// Print to stderr
+macro_rules! error {
+	( $($arg:tt)+ ) => {
+		$crate::ui::printerror!( normal, $($arg)+ )
+	};
+}
+pub(crate) use error;
+
+// Only prints when in a debug build.
+#[cfg(debug_assertions)]
+macro_rules! debug {
+	( $($arg:tt)+ ) => {
+		$crate::ui::printdebug!( normal, $($arg)+ )
+	};
+}
+
+// We are in a release build, don't print anything.
+#[cfg(not(debug_assertions))]
+macro_rules! debug {
+	($($arg:tt)+) => ();
+}
+pub(crate) use debug;

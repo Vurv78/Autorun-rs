@@ -10,15 +10,15 @@ use logging::*;
 use rglua::interface;
 use rglua::prelude::*;
 
-#[macro_use]
 pub mod lazy;
+use lazy::lazy_detour;
 
 // Make our own static detours because detours.rs is lame and locked theirs behind nightly. :)
 lazy_detour! {
 	pub static LUAL_LOADBUFFERX_H: extern "C" fn(LuaState, *const i8, SizeT, *const i8, *const i8) -> i32 = (
 		{
 			*LUA_SHARED_RAW.get::<extern "C" fn(LuaState, LuaString, SizeT, LuaString, LuaString) -> i32>(b"luaL_loadbufferx")
-			.unwrap()
+				.expect("Failed to get luaL_loadbufferx")
 		},
 		loadbufferx_h
 	);
@@ -145,10 +145,9 @@ pub fn dispatch(l: LuaState, mut params: DispatchParams) -> bool {
 			plugin: None
 		};
 
-		if let Err(why) = plugins::call_autorun(&env) {
+		if let Err(why) = plugins::call_autorun(l, &env) {
 			error!("Failed to call plugins (autorun): {why}");
 		}
-
 		// This will only run once when HAS_AUTORAN is false, setting it to true.
 		// Will be reset by JoinServer.
 		let ar_path = configs::path(configs::AUTORUN_PATH);
@@ -156,7 +155,7 @@ pub fn dispatch(l: LuaState, mut params: DispatchParams) -> bool {
 
 		if let Ok(script) = fs::read_to_string(&ar_path) {
 			// Try to run here
-			if let Err(why) = lua::run_env(&script, &env) {
+			if let Err(why) = lua::run_env(l, &script, &env) {
 				error!("{why}");
 			}
 		} else {
@@ -182,13 +181,13 @@ pub fn dispatch(l: LuaState, mut params: DispatchParams) -> bool {
 		};
 
 		if SETTINGS.plugins.enabled {
-			if let Err(why) = plugins::call_hook(&env) {
+			if let Err(why) = plugins::call_hook(l, &env) {
 				error!("Failed to call plugins (hook): {why}");
 			}
 		}
 
 		if let Ok(script) = fs::read_to_string(configs::path(configs::HOOK_PATH)) {
-			match lua::run_env(&script, &env) {
+			match lua::run_env(l, &script, &env) {
 				Ok(top) => {
 					// If you return ``true`` in your sautorun/hook.lua file, then don't run the sautorun.CODE that is about to run.
 					match lua_type(l, top + 1) {
@@ -248,41 +247,28 @@ extern "fastcall" fn paint_traverse_h(
 	force_repaint: bool,
 	force_allow: bool,
 ) {
-	use crate::global;
-
 	unsafe {
 		PAINT_TRAVERSE_H.call(this, panel_id, force_repaint, force_allow);
 	}
 
-	let script_queue = &mut *global::LUA_SCRIPTS.lock().unwrap();
+	match lua::SCRIPT_QUEUE.try_lock() {
+		Ok(ref mut queue) => {
+			if !queue.is_empty() {
+				let (realm, script) = queue.remove(0);
 
-	if !script_queue.is_empty() {
-		let (realm, script) = script_queue.remove(0);
-
-		let lua = iface!(LuaShared);
-		match lua {
-			Ok(lua) => {
-				let iface = lua.GetLuaInterface( realm.into() );
-				if let Some(iface) = unsafe { iface.as_mut() } {
-					debug!("Got {realm} iface!");
-					let state = iface.base as _;
-
-					match lua::dostring(state, &script) {
-						Err(why) => {
-							error!("{}", why);
+				match lua::get_state(realm) {
+					Ok(state) => {
+						debug!("Got {realm} iface!");
+						match lua::dostring(state, &script) {
+							Err(why) => error!("{why}"),
+							Ok(_) => info!("Script of len #{} ran successfully.", script.len())
 						}
-						Ok(_) => {
-							info!("Script of len #{} ran successfully.", script.len())
-						}
-					}
-				} else {
-					error!("Lua interface was null in painttraverse.");
+					},
+					Err(why) => error!("{why}")
 				}
-			},
-			Err(why) => {
-				error!("Failed to get LUASHARED003 interface in painttraverse {why}");
 			}
-		}
+		},
+		Err(_) => return,
 	}
 }
 

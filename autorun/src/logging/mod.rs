@@ -114,6 +114,6 @@ macro_rules! debug {
 // We are in a release build, don't print anything.
 #[cfg(not(debug_assertions))]
 macro_rules! debug {
-	($($arg:tt)+) => ();
+	($($arg:tt)+) => { () };
 }
 pub(crate) use debug;

@@ -1,4 +1,4 @@
-use std::{sync::Mutex, path::PathBuf};
+use std::path::PathBuf;
 
 use once_cell::sync::Lazy;
 use thiserror::Error;
@@ -15,32 +15,23 @@ pub static LOG_PATH: Lazy<PathBuf> = Lazy::new(|| {
 	let log_dir = configs::path(configs::LOG_DIR);
 	log_dir.join(format!(
 		"{}.log",
-		chrono::Local::now().format("%Y-%M-%d")
+		chrono::Local::now().format("%Y-%m-%d")
 	))
 });
 
-pub static HANDLE: Lazy<Mutex<std::fs::File>> = Lazy::new(|| {
-	let log_dir = configs::path(configs::LOG_DIR);
-
-	if !log_dir.exists() {
-		std::fs::create_dir_all(&log_dir).unwrap();
-	}
-
-	let log_path = log_dir.join(format!(
-		"{}.log",
-		chrono::Local::now().format("%Y-%M-%d")
-	));
-
-	let opts = std::fs::OpenOptions::new()
+pub fn init() -> Result<(), LogInitError> {
+	let handle = std::fs::OpenOptions::new()
 		.create(true)
 		.append(true)
-		.open(log_path);
+		.open(&*LOG_PATH);
 
-	Mutex::new( opts.expect("Failed to open file") )
-});
+	if let Ok(mut handle) = handle {
+		use std::io::Write;
+		if let Err(why) = writeln!(handle, "[INFO]: Logging started at {}\n", chrono::Local::now()) {
+			debug!("Failed to write initial log message {why}");
+		}
+	}
 
-pub fn init() -> Result<(), LogInitError> {
-	once_cell::sync::Lazy::force(&HANDLE);
 	Ok(())
 }
 
@@ -51,27 +42,10 @@ macro_rules! log {
 			.append(true)
 			.open(&*$crate::logging::LOG_PATH);
 
-		match handle {
-			Ok(mut handle) => {
-				use std::io::Write;
-				match writeln!(handle, concat!("[", $severity, "]: {}"), $msg) {
-					Ok(_) => (),
-					Err(why) => eprintln!("Failed to write to log file: {}", why),
-				}
-			},
-			Err(_) => ()
+		if let Ok(mut handle) = handle {
+			use std::io::Write;
+			let _ = writeln!(handle, concat!("[", $severity, "]: {}"), $msg);
 		}
-
-		/*match $crate::logging::HANDLE.try_lock() {
-			Ok(mut handle) => {
-				use std::io::Write;
-				match writeln!(handle, concat!("[", $severity, "]: {}"), $msg) {
-					Ok(_) => (),
-					Err(why) => eprintln!("Failed to write to log file: {}", why),
-				}
-			},
-			Err(_) => (),
-		}*/
 	}
 }
 
@@ -79,7 +53,7 @@ pub(crate) use log;
 
 macro_rules! warning {
 	($($arg:tt)+) => {
-		{
+		if $crate::configs::SETTINGS.logging.enabled {
 			$crate::ui::printwarning!( normal, $($arg)+ );
 			$crate::logging::log!( "WARN", format!( $($arg)+ ) );
 		}
@@ -93,10 +67,9 @@ macro_rules! trace {
 }
 pub(crate) use trace;
 
-// Regular stdout
 macro_rules! info {
 	( $($arg:tt)+ ) => {
-		{
+		if $crate::configs::SETTINGS.logging.enabled {
 			$crate::ui::printinfo!( normal, $($arg)+ );
 			$crate::logging::log!( "INFO", format!( $($arg)+ ) );
 		}
@@ -107,7 +80,7 @@ pub(crate) use info;
 // Print to stderr
 macro_rules! error {
 	( $($arg:tt)+ ) => {
-		{
+		if $crate::configs::SETTINGS.logging.enabled {
 			$crate::ui::printerror!( normal, $($arg)+ );
 			$crate::logging::log!( "ERROR", format!( $($arg)+ ) );
 		}
@@ -119,7 +92,7 @@ pub(crate) use error;
 #[cfg(debug_assertions)]
 macro_rules! debug {
 	( $($arg:tt)+ ) => {
-		{
+		if $crate::configs::SETTINGS.logging.enabled {
 			$crate::ui::printdebug!( normal, $($arg)+ );
 			$crate::logging::log!( "DEBUG", format!( $($arg)+ ) );
 		}

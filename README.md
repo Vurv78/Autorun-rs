@@ -3,7 +3,7 @@
 > Garrysmod Lua Dumper & Runner, written in Rust.  
 
 ## Features
-* Dumping all lua scripts to ``C:\Users\<User>\autorun\lua_dumps\<ServerIP>\..``
+* Dumping all lua scripts to ``C:\Users\<User>\autorun\lua_dumps\<ServerIP>\..`` (asynchronously to avoid i/o lag)
 * Runtime lua loading through ``lua_run`` and ``lua_openscript`` in an external console
 * Supports both 32* and 64 bit branches (*See [#22](https://github.com/Vurv78/Autorun-rs/issues/22))
 * Running a script before autorun (``autorun.lua``), to detour and bypass any 'anticheats'

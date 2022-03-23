@@ -39,6 +39,6 @@ systrayx = "0.4.1"
 
 # Logging
 chrono = "0.4.19"
-async-fs = "1.5.0" # Async fs io in another threadpool
 
 colored = "2"
+

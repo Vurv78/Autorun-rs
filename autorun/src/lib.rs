@@ -12,7 +12,6 @@ mod ui;
 mod cross;
 mod hooks;
 mod lua;
-mod util;
 mod plugins;
 
 use logging::*;

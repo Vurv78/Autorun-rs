@@ -1,5 +1,5 @@
 use std::ffi::CStr;
-use colored::{Colorize, ColoredString};
+use colored::Colorize;
 use rglua::prelude::*;
 
 use crate::{configs, lua::{self, err}, logging::*};

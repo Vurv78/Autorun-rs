@@ -134,12 +134,11 @@ pub fn list<'a>() -> HashMap<&'a str, Command<'a>> {
 				let script_path = std::path::Path::new(script_name);
 
 				if script_path.exists() {
-					let foo = 55;
-					printerror!(normal, "File does not exist: {foo}");
-					return Ok(());
-				} else {
 					let content = std::fs::read_to_string(script_path)?;
 					lua::run(Realm::Client, content)?;
+				} else {
+					printerror!(normal, "File does not exist: {script_name}");
+					return Ok(())
 				}
 			} else {
 				printcol!(

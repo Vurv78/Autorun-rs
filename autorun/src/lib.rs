@@ -40,6 +40,7 @@ extern "system" fn DllMain(_: *const u8, reason: u32, _: *const u8) -> u32 {
 }
 
 #[gmod_open]
+#[allow(unused)]
 pub fn main(l: LuaState) -> i32 {
 	// DllMain is called prior to this even if Autorun is used as a binary module.
 	// So only initialize what we haven't already.

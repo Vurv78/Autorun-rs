@@ -1,7 +1,9 @@
-use async_fs::File;
+use std::{sync::Mutex, path::PathBuf};
+
+use once_cell::sync::Lazy;
 use thiserror::Error;
 
-use crate::configs::{self, SETTINGS};
+use crate::configs;
 
 #[derive(Error, Debug)]
 pub enum LogInitError {
@@ -9,74 +11,78 @@ pub enum LogInitError {
 	File(#[from] std::io::Error),
 }
 
-pub fn init() -> Result<(), LogInitError> {
-	if !SETTINGS.logging.enabled {
-		/*let configs = ConfigBuilder::new()
-			.set_level_color(Level::Info, Some(Color::Cyan))
-			.set_level_color(Level::Error, Some(Color::Red))
-			.set_level_color(Level::Warn, Some(Color::Yellow))
-			.set_thread_mode(ThreadLogMode::Names)
-			.set_time_to_local(true)
-			.set_time_format_str("%I:%M:")
-			.build();
+pub static LOG_PATH: Lazy<PathBuf> = Lazy::new(|| {
+	let log_dir = configs::path(configs::LOG_DIR);
+	log_dir.join(format!(
+		"{}.log",
+		chrono::Local::now().format("%Y-%M-%d")
+	))
+});
 
-		TermLogger::init(
-			LevelFilter::Info,
-			configs,
-			TerminalMode::Mixed,
-			ColorChoice::Never,
-		)?;*/
-
-		return Ok(())
-	}
-
+pub static HANDLE: Lazy<Mutex<std::fs::File>> = Lazy::new(|| {
 	let log_dir = configs::path(configs::LOG_DIR);
 
 	if !log_dir.exists() {
-		std::fs::create_dir_all(&log_dir)?;
+		std::fs::create_dir_all(&log_dir).unwrap();
 	}
 
 	let log_path = log_dir.join(format!(
 		"{}.log",
-		chrono::Local::now().format("%B %d, %Y %I-%M %P")
+		chrono::Local::now().format("%Y-%M-%d")
 	));
 
-	// Create file synchronously since we're only gonna do this once
-	let log_file_handle = std::fs::File::create(&log_path)?;
+	let opts = std::fs::OpenOptions::new()
+		.create(true)
+		.append(true)
+		.open(log_path);
 
-	/*let configs = ConfigBuilder::new()
-		.set_level_color(Level::Info, Some(Color::Cyan))
-		.set_level_color(Level::Error, Some(Color::Red))
-		.set_level_color(Level::Warn, Some(Color::Yellow))
-		.set_thread_mode(ThreadLogMode::Names)
-		.set_time_to_local(true)
-		.set_time_format_str("%I:%M:")
-		.build();
+	Mutex::new( opts.expect("Failed to open file") )
+});
 
-	CombinedLogger::init(vec![
-		TermLogger::new(
-			// Logs that are level 'info' or above will be sent to the console.
-			LevelFilter::Info,
-			configs.clone(),
-			TerminalMode::Mixed,
-			ColorChoice::Never,
-		),
-		WriteLogger::new(
-			#[cfg(debug_assertions)]
-			LevelFilter::Trace,
-			#[cfg(not(debug_assertions))]
-			LevelFilter::Debug,
-			configs,
-			log_file_handle,
-		)
-	])?;*/
-
+pub fn init() -> Result<(), LogInitError> {
+	once_cell::sync::Lazy::force(&HANDLE);
 	Ok(())
 }
 
+macro_rules! log {
+	($severity:literal, $msg:expr) => {
+		let handle = std::fs::OpenOptions::new()
+			.create(true)
+			.append(true)
+			.open(&*$crate::logging::LOG_PATH);
+
+		match handle {
+			Ok(mut handle) => {
+				use std::io::Write;
+				match writeln!(handle, concat!("[", $severity, "]: {}"), $msg) {
+					Ok(_) => (),
+					Err(why) => eprintln!("Failed to write to log file: {}", why),
+				}
+			},
+			Err(_) => ()
+		}
+
+		/*match $crate::logging::HANDLE.try_lock() {
+			Ok(mut handle) => {
+				use std::io::Write;
+				match writeln!(handle, concat!("[", $severity, "]: {}"), $msg) {
+					Ok(_) => (),
+					Err(why) => eprintln!("Failed to write to log file: {}", why),
+				}
+			},
+			Err(_) => (),
+		}*/
+	}
+}
+
+pub(crate) use log;
+
 macro_rules! warning {
 	($($arg:tt)+) => {
-		$crate::ui::printwarning!( normal, $($arg)+ )
+		{
+			$crate::ui::printwarning!( normal, $($arg)+ );
+			$crate::logging::log!( "WARN", format!( $($arg)+ ) );
+		}
 	};
 }
 
@@ -90,7 +96,10 @@ pub(crate) use trace;
 // Regular stdout
 macro_rules! info {
 	( $($arg:tt)+ ) => {
-		$crate::ui::printinfo!( normal, $($arg)+ )
+		{
+			$crate::ui::printinfo!( normal, $($arg)+ );
+			$crate::logging::log!( "INFO", format!( $($arg)+ ) );
+		}
 	};
 }
 pub(crate) use info;
@@ -98,7 +107,10 @@ pub(crate) use info;
 // Print to stderr
 macro_rules! error {
 	( $($arg:tt)+ ) => {
-		$crate::ui::printerror!( normal, $($arg)+ )
+		{
+			$crate::ui::printerror!( normal, $($arg)+ );
+			$crate::logging::log!( "ERROR", format!( $($arg)+ ) );
+		}
 	};
 }
 pub(crate) use error;
@@ -107,7 +119,10 @@ pub(crate) use error;
 #[cfg(debug_assertions)]
 macro_rules! debug {
 	( $($arg:tt)+ ) => {
-		$crate::ui::printdebug!( normal, $($arg)+ )
+		{
+			$crate::ui::printdebug!( normal, $($arg)+ );
+			$crate::logging::log!( "DEBUG", format!( $($arg)+ ) );
+		}
 	};
 }
 
@@ -116,4 +131,5 @@ macro_rules! debug {
 macro_rules! debug {
 	($($arg:tt)+) => { () };
 }
+
 pub(crate) use debug;

@@ -1,5 +1,4 @@
 use crate::{ui, hooks::{self, HookingError}, logging, plugins::{self, PluginError}};
-use colored::Colorize;
 use logging::*;
 
 #[derive(Debug, thiserror::Error)]

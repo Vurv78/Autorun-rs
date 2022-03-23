@@ -21,7 +21,7 @@ pub fn init() {
 		"unknown"
 	};
 
-	if let Err(_) = colored::control::set_virtual_terminal(true) {
+	if colored::control::set_virtual_terminal(true).is_err() {
 		eprintln!("Failed to enable colored output");
 	}
 

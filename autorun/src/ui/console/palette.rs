@@ -1,5 +1,3 @@
-use colored::ColoredString;
-
 // Palette using iceberg-dark theme
 // https://windowsterminalthemes.dev
 type Rgb = (u8, u8, u8);
@@ -130,7 +128,7 @@ macro_rules! printerror {
 		println!(
 			"{} {}",
 			colored::Colorize::on_bright_red( colored::Colorize::white( colored::Colorize::bold(" ERROR ") ) ),
-			$crate::ui::formatcol!(WHITE, $effect, $($arg)+)
+			$crate::ui::formatcol!(BRIGHT_WHITE, $effect, $($arg)+)
 		)
 	};
 }
@@ -140,7 +138,7 @@ macro_rules! printwarning {
 		println!(
 			"{} {}",
 			colored::Colorize::on_bright_yellow( colored::Colorize::white( colored::Colorize::bold(" WARN ") ) ),
-			$crate::ui::formatcol!(WHITE, $effect, $($arg)+)
+			$crate::ui::formatcol!(BRIGHT_WHITE, $effect, $($arg)+)
 		)
 	};
 }
@@ -150,17 +148,18 @@ macro_rules! printinfo {
 		println!(
 			"{} {}",
 			colored::Colorize::on_bright_blue( colored::Colorize::white( colored::Colorize::bold(" INFO ") ) ),
-			$crate::ui::formatcol!(WHITE, $effect, $($arg)+)
+			$crate::ui::formatcol!(BRIGHT_WHITE, $effect, $($arg)+)
 		)
 	};
 }
 
+#[allow(unused)]
 macro_rules! printdebug {
 	($effect:ident, $($arg:tt)+) => {
 		println!(
 			"{} {}",
 			colored::Colorize::on_purple( colored::Colorize::white( colored::Colorize::bold(" DEBUG ") ) ),
-			$crate::ui::formatcol!(WHITE, $effect, $($arg)+)
+			$crate::ui::formatcol!(BRIGHT_WHITE, $effect, $($arg)+)
 		)
 	};
 }

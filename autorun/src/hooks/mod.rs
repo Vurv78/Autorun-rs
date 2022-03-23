@@ -251,24 +251,21 @@ extern "fastcall" fn paint_traverse_h(
 		PAINT_TRAVERSE_H.call(this, panel_id, force_repaint, force_allow);
 	}
 
-	match lua::SCRIPT_QUEUE.try_lock() {
-		Ok(ref mut queue) => {
-			if !queue.is_empty() {
-				let (realm, script) = queue.remove(0);
+	if let Ok(ref mut queue) = lua::SCRIPT_QUEUE.try_lock() {
+		if !queue.is_empty() {
+			let (realm, script) = queue.remove(0);
 
-				match lua::get_state(realm) {
-					Ok(state) => {
-						debug!("Got {realm} iface!");
-						match lua::dostring(state, &script) {
-							Err(why) => error!("{why}"),
-							Ok(_) => info!("Script of len #{} ran successfully.", script.len())
-						}
-					},
-					Err(why) => error!("{why}")
-				}
+			match lua::get_state(realm) {
+				Ok(state) => {
+					debug!("Got {realm} iface!");
+					match lua::dostring(state, &script) {
+						Err(why) => error!("{why}"),
+						Ok(_) => info!("Script of len #{} ran successfully.", script.len())
+					}
+				},
+				Err(why) => error!("{why}")
 			}
-		},
-		Err(_) => return,
+		}
 	}
 }
 

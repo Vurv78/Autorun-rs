@@ -1,4 +1,4 @@
-use std::{ffi::CString, borrow::Cow, sync::atomic::{AtomicPtr, Ordering, AtomicI32}};
+use std::{ffi::CString, borrow::Cow};
 
 use crate::{hooks, lua, logging::*, plugins::Plugin};
 
@@ -101,9 +101,6 @@ pub fn get_state(realm: Realm) -> Result<LuaState, rglua::interface::Error> {
 
 #[derive(Debug, thiserror::Error)]
 pub enum LuaEnvError {
-	#[error("Failed to get lua state")]
-	NoState,
-
 	#[error("Failed to get lua interface")]
 	Interface(#[from] rglua::interface::Error),
 

@@ -1,7 +1,7 @@
 use rglua::types::LuaState;
 
 use crate::lua::{self, AutorunEnv, LuaEnvError};
-use crate::{logging::*, configs, ui::{printcol, formatcol}};
+use crate::{logging::*, configs, ui::printcol};
 use crate::configs::PLUGIN_DIR;
 
 use std::path::PathBuf;

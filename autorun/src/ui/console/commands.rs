@@ -4,9 +4,9 @@ use std::collections::HashMap;
 #[cfg(not(all(target_os = "windows", target_arch = "x86")))]
 use autorun_shared::Realm;
 
-use fs_err as fs;
 use crate::ui::console::palette::{formatcol, printcol, printerror};
 use crate::{configs::SETTINGS, lua};
+use fs_err as fs;
 
 #[derive(Debug, thiserror::Error)]
 pub enum CommandError {
@@ -164,6 +164,59 @@ pub fn list<'a>() -> HashMap<&'a str, Command<'a>> {
 		"hide",
 		command!("Hides the console", |_, _, _| {
 			super::hide();
+			Ok(())
+		}),
+	);
+
+	// Credit: https://stackoverflow.com/a/6487534/14076600
+	// I had no idea clearing console was this bad on windows..
+	commands.insert(
+		"clear",
+		command!("Clears the console", |_, _, _| {
+			use std::mem::MaybeUninit;
+			use winapi::um::{
+				wincon::{
+					FillConsoleOutputAttribute, FillConsoleOutputCharacterA,
+					GetConsoleScreenBufferInfo, SetConsoleCursorPosition, FOREGROUND_BLUE,
+					FOREGROUND_GREEN, FOREGROUND_RED,
+				},
+				wincontypes::COORD,
+			};
+
+			let top_left = COORD { X: 0, Y: 0 };
+			let console = unsafe { winapi::um::processenv::GetStdHandle(winapi::um::winbase::STD_OUTPUT_HANDLE) };
+
+			let mut screen = MaybeUninit::uninit();
+
+			unsafe {
+				GetConsoleScreenBufferInfo(console, screen.as_mut_ptr());
+			}
+
+			let mut written = 0u32;
+			let screen = unsafe { screen.assume_init() };
+
+			let len_u32 = (screen.dwSize.X as u32).wrapping_mul(screen.dwSize.Y as u32);
+
+			unsafe {
+				FillConsoleOutputCharacterA(
+					console,
+					b' ' as i8,
+					len_u32,
+					top_left,
+					&mut written,
+				);
+
+				FillConsoleOutputAttribute(
+					console,
+					FOREGROUND_GREEN | FOREGROUND_RED | FOREGROUND_BLUE,
+					len_u32,
+					top_left,
+					&mut written,
+				);
+
+				SetConsoleCursorPosition(console, top_left);
+			}
+
 			Ok(())
 		}),
 	);

@@ -15,14 +15,14 @@
 ## 🤔 Usage
 ### 🧩 Menu Plugin
 Autorun can also be used as a menu plugin / required from lua automatically from the menu state.
-1. Put [the dll](#⬇️-downloading) ``gmsv_autorun_win<arch>.dll`` file into your ``garrysmod/lua/bin`` folder.
+1. Put [the dll](#%EF%B8%8F-downloading) ``gmsv_autorun_win<arch>.dll`` file into your ``garrysmod/lua/bin`` folder.
 2. Add ``require("autorun")`` at the bottom of ``garrysmod/lua/menu/menu.lua``  
 **It will now run automatically when garrysmod loads at the menu.**
 
 ### 💉 Injecting
 The traditional (but more inconvenient) method to use this is to just inject it.
 1. Get an injector (Make sure it's compatible to inject 32/64 bit code depending on your use).  
-2. Inject [the dll](#⬇️-downloading) into gmod while you're in the menu
+2. Inject [the dll](#%EF%B8%8F-downloading) into gmod while you're in the menu
 
 ## 📜 Scripthook
 Autorun features scripthook, which means we'll run your script before any other garrysmod script executes to verify if you want the code to run by running your own hook script.

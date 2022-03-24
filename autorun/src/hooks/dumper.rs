@@ -1,13 +1,19 @@
-use std::{ffi::CStr, path::PathBuf, sync::{Mutex, Arc}, time::Duration};
+use fs_err as fs;
+use std::{
+	ffi::CStr,
+	path::PathBuf,
+	sync::{Arc, Mutex},
+	time::Duration,
+};
 
+use crate::configs::{self, SETTINGS};
 use once_cell::sync::Lazy;
-use crate::configs::{SETTINGS, self};
 
 use super::DispatchParams;
 
 struct DumpEntry {
 	path: PathBuf,
-	content: String
+	content: String,
 }
 
 static DUMP_QUEUE: Lazy<Arc<Mutex<Vec<DumpEntry>>>> =
@@ -45,16 +51,13 @@ pub fn dump(params: &mut DispatchParams) {
 			fmt = strip_invalid(&fmt);
 
 			let path_clean = strip_invalid(params.path);
-			let path = PathBuf::from(&fmt)
-				.join(path_clean)
-				.with_extension("lua");
+			let path = PathBuf::from(&fmt).join(path_clean).with_extension("lua");
 
 			queue.push(DumpEntry {
 				path,
-				content: code
+				content: code,
 			});
 		}
-
 	}
 }
 
@@ -63,7 +66,7 @@ const QUEUE_COOLDOWN: Duration = Duration::from_millis(300);
 pub fn queue() {
 	// Same deal as the lua executor. Run in a separate thread and endlessly loop pulling latest files to dump
 	loop {
-		std::thread::sleep( QUEUE_COOLDOWN );
+		std::thread::sleep(QUEUE_COOLDOWN);
 
 		if let Ok(mut queue) = DUMP_QUEUE.try_lock() {
 			if !queue.is_empty() {
@@ -77,12 +80,12 @@ pub fn queue() {
 
 					let p = path.parent().unwrap_or(&path);
 					if !p.exists() {
-						if let Err(why) = std::fs::create_dir_all(&p) {
+						if let Err(why) = fs::create_dir_all(&p) {
 							debug!("Failed to create directory {}: {}", p.display(), why);
 						}
 					}
 
-					if let Err(why) = std::fs::write(&path, content) {
+					if let Err(why) = fs::write(&path, content) {
 						error!("Failed to write to {}: {}", path.display(), why);
 					}
 				}

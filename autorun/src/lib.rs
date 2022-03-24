@@ -8,11 +8,11 @@ mod configs;
 #[macro_use]
 mod logging;
 
-mod ui;
 mod cross;
 mod hooks;
 mod lua;
 mod plugins;
+mod ui;
 
 use logging::*;
 

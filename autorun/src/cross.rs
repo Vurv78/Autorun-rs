@@ -1,4 +1,9 @@
-use crate::{ui, hooks::{self, HookingError}, logging, plugins::{self, PluginError}};
+use crate::{
+	hooks::{self, HookingError},
+	logging,
+	plugins::{self, PluginError},
+	ui,
+};
 use logging::*;
 
 #[derive(Debug, thiserror::Error)]
@@ -13,7 +18,7 @@ pub enum StartError {
 	PluginError(#[from] PluginError),
 
 	#[error("Program panicked!")]
-	Panic
+	Panic,
 }
 
 pub fn startup() -> Result<(), StartError> {
@@ -45,7 +50,7 @@ pub fn startup() -> Result<(), StartError> {
 
 	match res {
 		Err(_why) => Err(StartError::Panic),
-		Ok(res) => res
+		Ok(res) => res,
 	}
 }
 

@@ -6,16 +6,20 @@ use std::fmt;
 pub enum Realm {
 	Client = 0,
 	Server = 1,
-	Menu = 2
+	Menu = 2,
 }
 
 impl fmt::Display for Realm {
 	fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-		write!(f, "{}", match self {
-			Realm::Client => "client",
-			Realm::Server => "server",
-			Realm::Menu => "menu"
-		})
+		write!(
+			f,
+			"{}",
+			match self {
+				Realm::Client => "client",
+				Realm::Server => "server",
+				Realm::Menu => "menu",
+			}
+		)
 	}
 }
 
@@ -25,7 +29,7 @@ impl From<u8> for Realm {
 			0 => Realm::Client,
 			1 => Realm::Server,
 			2 => Realm::Menu,
-			_ => panic!("Invalid realm")
+			_ => panic!("Invalid realm"),
 		}
 	}
 }
@@ -35,7 +39,7 @@ impl From<Realm> for u8 {
 		match r {
 			Realm::Client => 0,
 			Realm::Server => 1,
-			Realm::Menu => 2
+			Realm::Menu => 2,
 		}
 	}
 }

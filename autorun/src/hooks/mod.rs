@@ -1,14 +1,17 @@
 use std::ffi::CStr;
-use std::sync::atomic::{Ordering, AtomicU64};
+use std::sync::{
+	atomic::{AtomicU64, Ordering},
+	MutexGuard,
+};
 
-use crate::{configs::SETTINGS, lua, logging};
+use crate::{configs::SETTINGS, logging, lua};
 
 use logging::*;
 use rglua::interface;
 use rglua::prelude::*;
 
-pub mod lazy;
 mod dumper;
+pub mod lazy;
 mod scripthook;
 use lazy::lazy_detour;
 
@@ -59,7 +62,13 @@ pub struct DispatchParams<'a> {
 	net: &'a mut interface::NetChannelInfo,
 }
 
-fn loadbufferx_hook(l: LuaState, code: LuaString, code_len: usize, identifier: LuaString, mode: LuaString) -> Result<i32, interface::Error> {
+fn loadbufferx_hook(
+	l: LuaState,
+	code: LuaString,
+	code_len: usize,
+	identifier: LuaString,
+	mode: LuaString,
+) -> Result<i32, interface::Error> {
 	let mut engine = iface!(EngineClient)?;
 
 	let do_run;
@@ -76,13 +85,17 @@ fn loadbufferx_hook(l: LuaState, code: LuaString, code_len: usize, identifier: L
 			if curtime < CONNECTED.load(Ordering::Relaxed) {
 				debug!("Curtime is less than last time connected, assuming startup");
 				startup = true;
+
+				if let Err(why) = close_dylibs() {
+					debug!("Failed to close dynamic libs: {why}");
+				}
 			}
 
 			// Awful
 			CONNECTED.store(curtime, Ordering::Relaxed);
 
-			let raw_path = unsafe { CStr::from_ptr(identifier) };
-			let path = &raw_path.to_string_lossy()[1..]; // Remove the @ from the beginning of the path
+			let path = unsafe { CStr::from_ptr(identifier) };
+			let path = &path.to_string_lossy()[1..]; // Remove the @ from the beginning of the path
 
 			// There's way too many params here
 			let params = DispatchParams {
@@ -94,7 +107,7 @@ fn loadbufferx_hook(l: LuaState, code: LuaString, code_len: usize, identifier: L
 				path,
 
 				engine: &mut engine,
-				net
+				net,
 			};
 
 			do_run = dispatch(l, params);
@@ -104,9 +117,7 @@ fn loadbufferx_hook(l: LuaState, code: LuaString, code_len: usize, identifier: L
 		}
 	}
 
-	unsafe {
-		Ok(LUAL_LOADBUFFERX_H.call(l, code, code_len, identifier, mode))
-	}
+	unsafe { Ok(LUAL_LOADBUFFERX_H.call(l, code, code_len, identifier, mode)) }
 }
 
 extern "C" fn loadbufferx_h(
@@ -121,9 +132,7 @@ extern "C" fn loadbufferx_h(
 		Err(why) => {
 			error!("Failed to run loadbufferx hook: {}", why);
 
-			unsafe {
-				LUAL_LOADBUFFERX_H.call(l, code, len, identifier, mode)
-			}
+			unsafe { LUAL_LOADBUFFERX_H.call(l, code, len, identifier, mode) }
 		}
 	}
 }
@@ -156,16 +165,31 @@ extern "fastcall" fn paint_traverse_h(
 			let (realm, script) = queue.remove(0);
 
 			match lua::get_state(realm) {
-				Ok(state) => {
-					match lua::dostring(state, &script) {
-						Err(why) => error!("{why}"),
-						Ok(_) => info!("Script of len #{} ran successfully.", script.len())
-					}
+				Ok(state) => match lua::dostring(state, &script) {
+					Err(why) => error!("{why}"),
+					Ok(_) => info!("Script of len #{} ran successfully.", script.len()),
 				},
-				Err(why) => error!("{why}")
+				Err(why) => error!("{why}"),
 			}
 		}
 	}
+}
+
+#[derive(Debug, thiserror::Error)]
+enum CloseLibs {
+	#[error("Failed to acquire mutex (Report this on github)")]
+	Mutex(#[from] std::sync::PoisonError<MutexGuard<'static, Vec<libloading::Library>>>),
+}
+
+/// Closes all previously loaded dylibs from Autorun.requirebin
+fn close_dylibs() -> Result<(), CloseLibs> {
+	let mut libs = lua::LOADED_LIBS.lock()?;
+
+	for lib in libs.drain(..) {
+		let _ = lib.close();
+	}
+
+	Ok(())
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -174,7 +198,7 @@ pub enum HookingError {
 	Detour(#[from] detour::Error),
 
 	#[error("Failed to get interface")]
-	Interface(#[from] rglua::interface::Error)
+	Interface(#[from] rglua::interface::Error),
 }
 
 pub fn init() -> Result<(), HookingError> {
@@ -198,6 +222,10 @@ pub fn cleanup() -> Result<(), detour::Error> {
 		#[cfg(feature = "runner")]
 		#[cfg(not(all(target_os = "windows", target_arch = "x86")))]
 		PAINT_TRAVERSE_H.disable()?;
+	}
+
+	if let Err(why) = close_dylibs() {
+		debug!("Failed to close dynamic libs: {why}");
 	}
 
 	Ok(())

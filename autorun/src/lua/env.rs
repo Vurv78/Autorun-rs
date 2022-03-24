@@ -1,8 +1,18 @@
-use std::ffi::CStr;
 use colored::Colorize;
+use once_cell::sync::Lazy;
 use rglua::prelude::*;
+use std::{
+	ffi::CStr,
+	sync::{Arc, Mutex},
+};
 
-use crate::{configs, lua::{self, err}, logging::*};
+use fs_err as fs;
+
+use crate::{
+	configs,
+	logging::*,
+	lua::{self, err},
+};
 
 #[lua_function]
 pub fn log(l: LuaState) -> i32 {
@@ -16,7 +26,7 @@ pub fn log(l: LuaState) -> i32 {
 		3 => info!("{msg}"),
 		4 => debug!("{msg}"),
 		5 => trace!("{msg}"),
-		_ => luaL_argerror(l, 2, err::INVALID_LOG_LEVEL)
+		_ => luaL_argerror(l, 2, err::INVALID_LOG_LEVEL),
 	}
 
 	0
@@ -59,9 +69,9 @@ pub fn print(l: LuaState) -> i32 {
 					let str = buf.truecolor(r, g, b);
 					buf = String::new();
 
-					total_buf.push_str( &format!("{str}") );
+					total_buf.push_str(&format!("{str}"));
 				}
-			},
+			}
 			_ => {
 				let s = lua_tostring(l, i);
 				let s = unsafe { CStr::from_ptr(s).to_string_lossy() };
@@ -75,40 +85,103 @@ pub fn print(l: LuaState) -> i32 {
 	0
 }
 
+#[derive(Debug, thiserror::Error)]
+enum RequireError {
+	#[error("Failed to require file: {0}")]
+	IO(#[from] std::io::Error),
+
+	#[error("Failed to load dynamic library: {0}")]
+	Libloading(#[from] libloading::Error),
+
+	#[error("Failed to find gmod13_open or autorun_open symbols in library")]
+	SymbolNotFound,
+
+	#[error("File does not exist: {0}")]
+	DoesNotExist(String),
+}
+
 // https://github.com/lua/lua/blob/eadd8c7178c79c814ecca9652973a9b9dd4cc71b/loadlib.c#L657
 #[lua_function]
-pub fn require(l: LuaState) -> i32 {
+pub fn require(l: LuaState) -> Result<i32, RequireError> {
 	use rglua::prelude::*;
-	use std::{fs::File, io::prelude::*};
 
 	let raw_path = luaL_checkstring(l, 1);
 	let path = unsafe { CStr::from_ptr(raw_path) };
 	let path = path.to_string_lossy();
 
-	let path = configs::path(configs::INCLUDE_DIR)
-		.join(path.to_string()); // I hate this to_string
+	let path = configs::path(configs::INCLUDE_DIR).join(path.as_ref());
 
-	match File::open(&path) {
-		Err(why) => error!(
-			"Failed to sautorun.require path [{}] [{}]",
-			path.display(),
-			why
-		),
-		Ok(mut handle) => {
-			let mut script = String::new();
-			let top = lua_gettop(l);
-			if let Err(why) = handle.read_to_string(&mut script) {
-				error!(
-					"Failed to read script from file [{}]. Reason: {}",
-					path.display(),
-					why
-				);
-			} else if let Err(why) = lua::dostring(l, &script) {
-				error!("Error when requiring [{}]. [{}]", path.display(), why);
+	let script = fs::read_to_string(&path)?;
+
+	let top = lua_gettop(l);
+	if let Err(why) = lua::dostring(l, &script) {
+		error!("Error when requiring [{}]. [{}]", path.display(), why);
+	}
+
+	Ok(lua_gettop(l) - top)
+}
+
+pub static LOADED_LIBS: Lazy<Arc<Mutex<Vec<libloading::Library>>>> =
+	Lazy::new(|| Arc::new(Mutex::new(vec![])));
+
+#[lua_function]
+/// Example usage: require("vistrace") (No extensions or anything.)
+pub fn requirebin(l: LuaState) -> Result<i32, RequireError> {
+	let dlname = luaL_checkstring(l, 1);
+	let dlname = unsafe { CStr::from_ptr(dlname) };
+	let dlname = dlname.to_string_lossy();
+
+	let binpath = configs::path(configs::BIN_DIR);
+	let mut path = binpath.join(dlname.as_ref());
+
+	if !path.exists() {
+		let os_prefix = if cfg!(windows) {
+			"win"
+		} else if cfg!(target_os = "macos") {
+			"osx"
+		} else {
+			"linux"
+		};
+
+		let arch = if cfg!(target_pointer_width = "32") {
+			"32"
+		} else {
+			"64"
+		};
+
+		let ext = std::env::consts::DLL_EXTENSION;
+		let altpath = binpath.join(format!("gmcl_{dlname}_{os_prefix}{arch}.{ext}"));
+
+		if altpath.exists() {
+			path = altpath;
+		} else {
+			let altpath = binpath.join(format!("gmsv_{dlname}_{os_prefix}{arch}.{ext}"));
+			if altpath.exists() {
+				path = altpath;
+			} else {
+				return Err(RequireError::DoesNotExist(path.display().to_string()));
 			}
-			return lua_gettop(l) - top;
 		}
 	}
 
-	0
+	let lib = unsafe { libloading::Library::new(path)? };
+
+	// Api may be changed.
+	type AutorunEntry = extern "C" fn(l: LuaState) -> i32;
+	type Gmod13Entry = extern "C" fn(l: LuaState) -> i32;
+
+	let n_symbols;
+	if let Ok(autorun_sym) = unsafe { lib.get::<AutorunEntry>(b"autorun_open\0") } {
+		n_symbols = autorun_sym(l);
+	} else if let Ok(gmod13_sym) = unsafe { lib.get::<Gmod13Entry>(b"gmod13_open\0") } {
+		n_symbols = gmod13_sym(l);
+	} else {
+		return Err(RequireError::SymbolNotFound);
+	}
+
+	if let Ok(mut libs) = LOADED_LIBS.try_lock() {
+		libs.push(lib);
+	}
+
+	Ok(n_symbols)
 }

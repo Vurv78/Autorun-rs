@@ -137,7 +137,7 @@ macro_rules! printwarning {
 	($effect:ident, $($arg:tt)+) => {
 		println!(
 			"{} {}",
-			colored::Colorize::on_bright_yellow( colored::Colorize::white( colored::Colorize::bold(" WARN ") ) ),
+			colored::Colorize::on_yellow( colored::Colorize::white( colored::Colorize::bold(" WARN ") ) ),
 			$crate::ui::formatcol!(BRIGHT_WHITE, $effect, $($arg)+)
 		)
 	};
@@ -164,4 +164,4 @@ macro_rules! printdebug {
 	};
 }
 
-pub(crate) use {printcol, formatcol, printinfo, printwarning, printdebug, printerror};
+pub(crate) use {formatcol, printcol, printdebug, printerror, printinfo, printwarning};

@@ -3,13 +3,13 @@ use crate::{configs::SETTINGS, logging::*};
 mod commands;
 pub mod palette;
 
-use palette::{printcol, formatcol};
+use palette::{formatcol, printcol};
 
 pub fn init() {
 	unsafe {
 		// Load this library before it starts spamming useless errors into our console.
 		// https://github.com/Vurv78/Autorun-rs/issues/26
-		winapi::um::libloaderapi::LoadLibraryA( rglua::cstr!("vaudio_speex.dll") );
+		winapi::um::libloaderapi::LoadLibraryA(rglua::cstr!("vaudio_speex.dll"));
 		winapi::um::consoleapi::AllocConsole()
 	};
 
@@ -33,13 +33,13 @@ pub fn init() {
 		"<====> {} {} {} <====>",
 		formatcol!(CYAN, "Autorun"),
 		formatcol!(RED, bold, "v{}", version),
-		formatcol!(CYAN, "on {}",
-			formatcol!(RED, bold, "{}", arch)
-		)
+		formatcol!(CYAN, "on {}", formatcol!(RED, bold, "{}", arch))
 	);
 
 	printcol!(
-		BRIGHT_RED, bold, "Type {} for a list of commands",
+		BRIGHT_RED,
+		bold,
+		"Type {} for a list of commands",
 		formatcol!(YELLOW, bold, "{}", "help")
 	);
 
@@ -65,8 +65,7 @@ fn start() {
 		match std::io::stdin().read_line(&mut buffer) {
 			Err(why) => error!("{why}"),
 			Ok(_) => {
-				let (cmd, rest) = buffer.split_once(' ')
-					.unwrap_or((buffer.trim_end(), ""));
+				let (cmd, rest) = buffer.split_once(' ').unwrap_or((buffer.trim_end(), ""));
 
 				let rest_trim = rest.trim_end();
 				let args = rest_trim.split(' ');
@@ -110,15 +109,13 @@ pub fn hide() {
 			});
 
 			match res {
-				Ok(_) => {
-					match app.wait_for_message() {
-						Ok(_) => (),
-						Err(why) => error!("Error waiting for message: {}", why),
-					}
+				Ok(_) => match app.wait_for_message() {
+					Ok(_) => (),
+					Err(why) => error!("Error waiting for message: {}", why),
 				},
 				Err(why) => error!("Failed to add menu item: {why}"),
 			}
-		},
+		}
 		Err(why) => {
 			error!("Failed to create systray app! {why}")
 		}

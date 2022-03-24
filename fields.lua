@@ -43,6 +43,15 @@ function Autorun.require(path) end
 ---@vararg string|{[1]: number, [2]: number, [3]: number}|number|userdata|lightuserdata
 function Autorun.print(...) end
 
+--- Requires a dynamic link library (.dll) from your autorun/bin folder.
+--- Make sure the DLLs are named correctly (e.g. gmcl_name_win<arch>.dll)
+--- ```lua
+--- local mybin = Autorun.requirebin("CHTTP")
+--- ```
+---@param path string
+---@return ...
+function Autorun.requirebin(path) end
+
 ---@class Plugin
 ---@field Settings table # Key value pairs settings retrieved from plugin.toml
 ---@field VERSION string # Version of the plugin

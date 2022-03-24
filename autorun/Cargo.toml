@@ -42,3 +42,7 @@ chrono = "0.4.19"
 
 colored = "2"
 
+fs-err = "2.7.0"
+
+# For ``requirebin``. This is already a dependency of ``rglua``, so no harm in adding it here.
+libloading = "0.7.3"

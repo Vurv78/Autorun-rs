@@ -1,5 +1,10 @@
+use crate::{
+	configs::{self, SETTINGS},
+	lua::{self, AutorunEnv},
+	plugins,
+};
+use fs_err as fs;
 use rglua::prelude::*;
-use crate::{lua::{AutorunEnv, self}, plugins, configs::{self, SETTINGS}};
 
 use super::DispatchParams;
 
@@ -15,7 +20,7 @@ pub fn execute(l: LuaState, params: &mut DispatchParams, do_run: &mut bool) {
 			code_len: params.code_len,
 
 			ip: params.ip,
-			plugin: None
+			plugin: None,
 		};
 
 		if let Err(why) = plugins::call_autorun(l, &env) {
@@ -26,7 +31,7 @@ pub fn execute(l: LuaState, params: &mut DispatchParams, do_run: &mut bool) {
 		let ar_path = configs::path(configs::AUTORUN_PATH);
 		trace!("Running autorun script at {}", ar_path.display());
 
-		if let Ok(script) = std::fs::read_to_string(&ar_path) {
+		if let Ok(script) = fs::read_to_string(&ar_path) {
 			// Try to run here
 			if let Err(why) = lua::run_env(l, &script, &env) {
 				error!("{why}");
@@ -50,7 +55,7 @@ pub fn execute(l: LuaState, params: &mut DispatchParams, do_run: &mut bool) {
 			code_len: params.code_len,
 
 			ip: params.ip,
-			plugin: None
+			plugin: None,
 		};
 
 		if SETTINGS.plugins.enabled {
@@ -59,7 +64,7 @@ pub fn execute(l: LuaState, params: &mut DispatchParams, do_run: &mut bool) {
 			}
 		}
 
-		if let Ok(script) = std::fs::read_to_string(configs::path(configs::HOOK_PATH)) {
+		if let Ok(script) = fs::read_to_string(configs::path(configs::HOOK_PATH)) {
 			match lua::run_env(l, &script, &env) {
 				Ok(top) => {
 					// If you return ``true`` in your sautorun/hook.lua file, then don't run the sautorun.CODE that is about to run.

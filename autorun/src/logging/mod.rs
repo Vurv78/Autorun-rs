@@ -1,5 +1,6 @@
 use std::path::PathBuf;
 
+use fs_err as fs;
 use once_cell::sync::Lazy;
 use thiserror::Error;
 
@@ -13,21 +14,22 @@ pub enum LogInitError {
 
 pub static LOG_PATH: Lazy<PathBuf> = Lazy::new(|| {
 	let log_dir = configs::path(configs::LOG_DIR);
-	log_dir.join(format!(
-		"{}.log",
-		chrono::Local::now().format("%Y-%m-%d")
-	))
+	log_dir.join(format!("{}.log", chrono::Local::now().format("%Y-%m-%d")))
 });
 
 pub fn init() -> Result<(), LogInitError> {
-	let handle = std::fs::OpenOptions::new()
+	let handle = fs::OpenOptions::new()
 		.create(true)
 		.append(true)
 		.open(&*LOG_PATH);
 
 	if let Ok(mut handle) = handle {
 		use std::io::Write;
-		if let Err(why) = writeln!(handle, "[INFO]: Logging started at {}\n", chrono::Local::now()) {
+		if let Err(why) = writeln!(
+			handle,
+			"[INFO]: Logging started at {}\n",
+			chrono::Local::now()
+		) {
 			debug!("Failed to write initial log message {why}");
 		}
 	}
@@ -37,7 +39,7 @@ pub fn init() -> Result<(), LogInitError> {
 
 macro_rules! log {
 	($severity:literal, $msg:expr) => {
-		let handle = std::fs::OpenOptions::new()
+		let handle = fs_err::OpenOptions::new()
 			.create(true)
 			.append(true)
 			.open(&*$crate::logging::LOG_PATH);
@@ -46,7 +48,7 @@ macro_rules! log {
 			use std::io::Write;
 			let _ = writeln!(handle, concat!("[", $severity, "]: {}"), $msg);
 		}
-	}
+	};
 }
 
 pub(crate) use log;
@@ -63,7 +65,9 @@ macro_rules! warning {
 pub(crate) use warning;
 
 macro_rules! trace {
-	( $($arg:tt)+ ) => {()};
+	( $($arg:tt)+ ) => {
+		()
+	};
 }
 pub(crate) use trace;
 
@@ -102,7 +106,9 @@ macro_rules! debug {
 // We are in a release build, don't print anything.
 #[cfg(not(debug_assertions))]
 macro_rules! debug {
-	($($arg:tt)+) => { () };
+	($($arg:tt)+) => {
+		()
+	};
 }
 
 pub(crate) use debug;

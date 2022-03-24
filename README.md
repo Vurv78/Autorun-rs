@@ -38,11 +38,13 @@ __See an example project using the scripthook [here](https://github.com/Vurv78/S
 C:\Users\<User>\autorun
 ├── \autorun.lua # Runs *once* before autorun
 ├── \hook.lua # Runs for every script
-├── \lua_dumps\ # Each server gets it's own folder named by its IP
+├── \lua_dumps\ # Each server gets a folder with their IP as the name.
 │   ├── \192.168.1.55_27015\
 │   └── \X.Y.Z.W_PORT\
 ├── \logs\ # Logs are saved here
-│   └── August 02, 2021 01-00 pm.log
+│   └── YYYY-MM-DD.log
+├── \bin\ # Store binary modules to be used with Autorun.requirebin
+│   └── gmcl_vistrace_win64.dll
 ├── \plugins\ # Folder for Autorun plugins, same behavior as above autorun and hook.lua, but meant for plugin developers.
 │   └── \Safety\
 │       ├── \src\

@@ -14,7 +14,7 @@ pub enum PluginError {
 	#[error("IO Error: {0}")]
 	IO(#[from] std::io::Error),
 
-	#[error("Lua env error: {0}")]
+	#[error("{0}")]
 	LuaEnv(#[from] LuaEnvError),
 
 	#[error("Failed to parse plugin.toml: {0}")]
@@ -180,7 +180,7 @@ pub fn call_autorun(l: LuaState, env: &AutorunEnv) -> Result<(), PluginError> {
 			Ok(plugin) => {
 				if plugin.has_file("src/autorun.lua") {
 					if let Err(why) = plugin.dofile(l, "src/autorun.lua", env) {
-						error!("Failed to run plugin '{}': {}", plugin.get_name(), why);
+						error!("Error in plugin '{}': [{}]", plugin.get_name(), why);
 					};
 				}
 			}

@@ -103,9 +103,6 @@ pub fn get_state(realm: Realm) -> Result<LuaState, rglua::interface::Error> {
 
 #[derive(Debug, thiserror::Error)]
 pub enum LuaEnvError {
-	#[error("Failed to get lua interface")]
-	Interface(#[from] rglua::interface::Error),
-
 	#[error("Failed to compile lua code '{0}'")]
 	Compile(String),
 

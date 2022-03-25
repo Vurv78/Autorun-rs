@@ -1,6 +1,6 @@
 [package]
 name = "autorun"
-version = "1.1.0-beta4"
+version = "1.1.0"
 authors = ["Vurv78 <Vurv78@users.noreply.github.com>"]
 edition = "2021"
 publish = false

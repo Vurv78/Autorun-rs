@@ -3,7 +3,7 @@ use once_cell::sync::Lazy;
 use rglua::prelude::*;
 use std::{
 	ffi::CStr,
-	sync::{Arc, Mutex},
+	sync::{Arc, Mutex}, mem::MaybeUninit,
 };
 
 use fs_err as fs;
@@ -100,6 +100,21 @@ enum RequireError {
 	DoesNotExist(String),
 }
 
+// Gets function at the stack level given (assuming there is one there..)
+fn get_func(l: LuaState, level: u32) {
+	let mut ar = MaybeUninit::uninit();
+
+	if lua_getstack(l, level as i32, ar.as_mut_ptr()) == 0 {
+		luaL_argerror(l, 1, cstr!("invalid level"));
+	}
+
+	lua_getinfo(l, cstr!("f"), ar.as_mut_ptr());
+
+	if lua_isnil(l, -1) {
+		luaL_error(l, cstr!("no function environment for tail call at level %d"), level);
+	}
+}
+
 // https://github.com/lua/lua/blob/eadd8c7178c79c814ecca9652973a9b9dd4cc71b/loadlib.c#L657
 #[lua_function]
 pub fn require(l: LuaState) -> Result<i32, RequireError> {
@@ -107,15 +122,33 @@ pub fn require(l: LuaState) -> Result<i32, RequireError> {
 
 	let raw_path = luaL_checkstring(l, 1);
 	let path = unsafe { CStr::from_ptr(raw_path) };
-	let path = path.to_string_lossy();
+	let path_name = path.to_string_lossy();
 
-	let path = configs::path(configs::INCLUDE_DIR).join(path.as_ref());
-
+	let path = configs::path(configs::INCLUDE_DIR).join(path_name.as_ref());
 	let script = fs::read_to_string(&path)?;
 
 	let top = lua_gettop(l);
-	if let Err(why) = lua::dostring(l, &script) {
-		error!("Error when requiring [{}]. [{}]", path.display(), why);
+
+	if let Err(why) = lua::compile(l, &script) {
+		let err = format!("Compile error when requiring file {path_name}: {why}\0");
+		let err_c = err.as_bytes();
+
+		luaL_error(l, err_c.as_ptr() as *const _);
+	}
+
+	get_func(l, 1);
+	if lua_iscfunction(l, -1) == 0 {
+		lua_getfenv(l, -1);
+		lua_remove(l, -2);
+
+		lua_setfenv(l, -2);
+	}
+
+	if let Err(why) = lua::pcall(l) {
+		let err = format!("Error when requiring file {path_name}: {why}\0");
+		let err_c = err.as_bytes();
+
+		luaL_error(l, err_c.as_ptr() as *const _);
 	}
 
 	Ok(lua_gettop(l) - top)

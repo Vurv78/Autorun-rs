@@ -44,7 +44,8 @@ pub fn print(l: LuaState) -> i32 {
 	let mut buf = String::new();
 
 	// Walk through args backwards. Every color will affect all of the text prior.
-	for i in (1..=nargs).rev() {
+	let mut color: Option<(u8, u8, u8)> = None;
+	for i in 1..=nargs {
 		match lua_type(l, i) {
 			lua::TTABLE => {
 				lua_rawgeti(l, i, 1);
@@ -57,6 +58,7 @@ pub fn print(l: LuaState) -> i32 {
 					lua_pop(l, 1);
 					continue;
 				}
+
 				let r = luaL_optinteger(l, -1, 255) as u8;
 
 				lua_rawgeti(l, i, 2);
@@ -65,19 +67,30 @@ pub fn print(l: LuaState) -> i32 {
 				lua_rawgeti(l, i, 3);
 				let b = luaL_optinteger(l, -1, 255) as u8;
 
-				if !buf.is_empty() {
-					let str = buf.truecolor(r, g, b);
+				if let Some(col) = color {
+					// Take all previous text
+					let str = buf.truecolor(col.0, col.1, col.2);
 					buf = String::new();
-
 					total_buf.push_str(&format!("{str}"));
 				}
-			}
+
+				color = Some( (r, g, b) );
+			},
+			lua::TFUNCTION | lua::TUSERDATA | lua::TLIGHTUSERDATA | lua::TTHREAD => {
+				let s = lua_topointer(l, i);
+				buf.push_str( &format!("{:p}", s) );
+			},
 			_ => {
 				let s = lua_tostring(l, i);
 				let s = unsafe { CStr::from_ptr(s).to_string_lossy() };
 				buf.push_str(&s);
 			}
 		}
+	}
+
+	if let Some(col) = color {
+		let str = buf.truecolor(col.0, col.1, col.2);
+		total_buf.push_str(&format!("{str}"));
 	}
 
 	println!("{total_buf}");

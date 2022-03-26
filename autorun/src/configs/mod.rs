@@ -14,7 +14,9 @@ pub struct Settings {
 #[derive(Debug, Deserialize, Serialize)]
 pub struct AutorunSettings {
 	pub hide: bool,
+	pub nocolor: Option<bool>,
 }
+
 #[derive(Debug, Deserialize, Serialize)]
 pub struct FileSettings {
 	pub enabled: bool,

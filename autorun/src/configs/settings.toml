@@ -1,6 +1,8 @@
 [autorun]
 # Whether to hide on startup
 hide = false
+# Whether to disable terminal colors
+nocolor = false
 
 [plugins]
 # Whether to run saved plugins

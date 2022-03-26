@@ -6,7 +6,7 @@ use std::{
 	time::Duration,
 };
 
-use crate::configs::{self, SETTINGS};
+use crate::{fs as afs, configs::SETTINGS};
 use once_cell::sync::Lazy;
 
 use super::DispatchParams;
@@ -73,7 +73,7 @@ pub fn queue() {
 				// Handle 15 files at a time max
 				// 15 files every 300 ms is around 50 files per sec, not bad
 				let len = 15.min(queue.len());
-				let dump_dir = &*configs::path(configs::DUMP_DIR);
+				let dump_dir = &*afs::in_autorun(afs::DUMP_DIR);
 				for entry in queue.drain(..len) {
 					let path = dump_dir.join(entry.path);
 					let content = entry.content;

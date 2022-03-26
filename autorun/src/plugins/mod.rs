@@ -1,11 +1,12 @@
-use rglua::types::LuaState;
+use rglua::prelude::*;
 
-use crate::configs::PLUGIN_DIR;
+use crate::fs::{self as afs, FSPath, PLUGIN_DIR};
 use crate::lua::{self, AutorunEnv, LuaEnvError};
-use crate::{configs, logging::*, ui::printcol};
+use crate::{logging::*, ui::printcol};
 use fs_err as fs;
 
-use std::path::PathBuf;
+use std::ffi::CString;
+use std::path::Path;
 
 mod serde;
 
@@ -39,8 +40,9 @@ impl Default for PluginLanguage {
 #[derive(Debug)]
 pub struct Plugin {
 	data: serde::PluginToml,
-	/// Path to plugin's directory
-	dir: PathBuf,
+
+	/// Path to plugin's directory local to autorun directory
+	dir: FSPath
 }
 
 impl Plugin {
@@ -64,51 +66,142 @@ impl Plugin {
 		&self.data.settings
 	}
 
-	// Will use later in getting Autorun.require to work relative.
-	#[allow(unused)]
-	pub fn get_path(&self) -> &PathBuf {
-		&self.dir
-	}
-
 	pub fn has_file<N: AsRef<str>>(&self, name: N) -> bool {
 		let name = name.as_ref();
 		let path = self.dir.join(name);
 		path.exists()
 	}
 
-	pub fn dofile<N: AsRef<str>>(
+	fn push_settings(&self, l: LuaState) {
+		match self.get_settings().as_table() {
+			Some(tbl) => {
+				lua_createtable(l, 0, tbl.len() as i32);
+
+				fn push_value(l: LuaState, v: &toml::Value) {
+					match v {
+						toml::Value::String(s) => {
+							let bytes = s.as_bytes();
+							lua_pushlstring(l, bytes.as_ptr() as _, bytes.len());
+						}
+						toml::Value::Integer(n) => lua_pushinteger(l, *n as LuaInteger),
+						toml::Value::Boolean(b) => lua_pushboolean(l, *b as i32),
+
+						toml::Value::Float(f) => lua_pushnumber(l, *f),
+
+						toml::Value::Array(arr) => {
+							lua_createtable(l, arr.len() as i32, 0);
+
+							for (i, v) in arr.iter().enumerate() {
+								push_value(l, v);
+								lua_rawseti(l, -2, i as i32 + 1);
+							}
+						}
+
+						toml::Value::Table(tbl) => {
+							lua_createtable(l, 0, tbl.len() as i32);
+
+							for (k, v) in tbl.iter() {
+								if let Ok(k) = CString::new(k.as_bytes()) {
+									push_value(l, v);
+									lua_setfield(l, -2, k.as_ptr());
+								}
+							}
+						}
+
+						toml::Value::Datetime(time) => {
+							// Just pass a string, smh
+							let time = time.to_string();
+							let bytes = time.as_bytes();
+							lua_pushlstring(l, bytes.as_ptr() as _, bytes.len());
+						}
+					}
+				}
+
+				for (k, v) in tbl.iter() {
+					let k = match CString::new(k.as_bytes()) {
+						Ok(k) => k,
+						Err(_) => continue,
+					};
+
+					push_value(l, v);
+					lua_setfield(l, -2, k.as_ptr());
+				}
+			}
+			None => lua_createtable(l, 0, 0),
+		}
+	}
+
+	pub fn run_lua<S: AsRef<str>, P: AsRef<Path>>(&self, l: LuaState, src: S, path: P, env: &AutorunEnv) -> Result<i32, LuaEnvError> {
+		lua::run_env_prep(
+			l,
+			src,
+			path,
+			env,
+			Some(|l| {
+				lua_createtable(l, 0, 4);
+
+				let name = self.get_name();
+				if let Ok(name) = CString::new(name.as_bytes()) {
+					lua_pushstring(l, name.as_ptr());
+					lua_setfield(l, -2, cstr!("NAME"));
+				}
+
+				let version = self.get_version();
+				if let Ok(version) = CString::new(version.as_bytes()) {
+					lua_pushstring(l, version.as_ptr());
+					lua_setfield(l, -2, cstr!("VERSION"));
+				}
+
+				let author = self.get_author();
+				if let Ok(author) = CString::new(author.as_bytes()) {
+					lua_pushstring(l, author.as_ptr());
+					lua_setfield(l, -2, cstr!("AUTHOR"));
+				}
+
+				if let Some(desc) = self.get_description() {
+					if let Ok(desc) = CString::new(desc.as_bytes()) {
+						lua_pushstring(l, desc.as_ptr());
+						lua_setfield(l, -2, cstr!("DESCRIPTION"));
+					}
+				}
+
+				self.push_settings(l);
+				lua_setfield(l, -2, cstr!("Settings"));
+
+				lua_setfield(l, -2, cstr!("Plugin"));
+			}),
+		)
+	}
+
+	pub fn dofile<P: AsRef<Path>>(
 		&self,
 		l: LuaState,
-		name: N,
+		path: P,
 		env: &AutorunEnv,
 	) -> Result<(), PluginError> {
-		let src = fs::read_to_string(self.dir.join(name.as_ref()))?;
-
-		lua::run_plugin(l, &src, env, self)?;
-
+		let path = self.dir.join(path);
+		let src = afs::read_to_string(&path)?;
+		self.run_lua(l, &src, &path, env)?;
 		Ok(())
 	}
 }
 
 /// Searches for plugin and makes sure they are all valid, if not, prints errors to the user.
 pub fn sanity_check() -> Result<(), PluginError> {
-	let dir = fs::read_dir(configs::path(PLUGIN_DIR))?;
-	for d in dir {
-		if let Ok(d) = d {
-			let path = d.path();
-			if path.is_dir() {
-				let plugin_toml = path.join("plugin.toml");
+	afs::traverse_dir(PLUGIN_DIR, |path, _| {
+		if path.is_dir() {
+			let plugin_toml = path.join("plugin.toml");
 
-				let src_autorun = path.join("src/autorun.lua");
-				let src_hooks = path.join("src/hook.lua");
+			let src_autorun = path.join("src/autorun.lua");
+			let src_hooks = path.join("src/hook.lua");
 
-				let path_name = path
-					.file_name()
-					.map(|x| x.to_string_lossy())
-					.unwrap_or_else(|| std::borrow::Cow::Owned(path.display().to_string()));
+			let path_name = path
+				.file_name()
+				.map(|x| x.to_string_lossy())
+				.unwrap_or_else(|| std::borrow::Cow::Owned(path.display().to_string()));
 
-				if plugin_toml.exists() && (src_autorun.exists() || src_hooks.exists()) {
-					let content = fs::read_to_string(plugin_toml)?;
+			if plugin_toml.exists() && (src_autorun.exists() || src_hooks.exists()) {
+				if let Ok(content) = afs::read_to_string(plugin_toml) {
 					match toml::from_str::<serde::PluginToml>(&content) {
 						Ok(_) => (),
 						Err(why) => error!(
@@ -116,19 +209,19 @@ pub fn sanity_check() -> Result<(), PluginError> {
 							path_name, why
 						),
 					}
-				} else if plugin_toml.exists() {
-					error!("Failed to load plugin {}. plugin.toml exists but no src/autorun.lua or src/hook.lua", path_name);
 				} else {
-					error!(
-						"Failed to load plugin {}. plugin.toml does not exist",
-						path_name
-					);
+					error!("Failed to load plugin {}. plugin.toml could not be read.", path_name);
 				}
+			} else if plugin_toml.exists() {
+				error!("Failed to load plugin {}. plugin.toml exists but no src/autorun.lua or src/hook.lua", path_name);
+			} else {
+				error!(
+					"Failed to load plugin {}. plugin.toml does not exist",
+					path_name
+				);
 			}
-		} else {
-			error!("autorun/plugins folder missing during sanity check!");
 		}
-	}
+	})?;
 
 	Ok(())
 }
@@ -140,36 +233,34 @@ type PluginFS = (String, Result<Plugin, PluginError>);
 pub fn find() -> Result<Vec<PluginFS>, PluginError> {
 	let mut plugins = vec![];
 
-	let dir = fs::read_dir(configs::path(PLUGIN_DIR))?;
-	for d in dir {
-		match d {
-			Ok(d) => {
-				let path = d.path();
-				let path_name = path
-					.file_name()
-					.map(|x| x.to_string_lossy().to_string())
-					.unwrap_or_else(|| path.display().to_string());
+	afs::traverse_dir(PLUGIN_DIR, |path, _| {
+		let path_name = path
+			.file_name()
+			.map(|x| x.to_string_lossy().to_string())
+			.unwrap_or_else(|| path.display().to_string());
 
-				if path.is_dir() {
-					let plugin_toml = path.join("plugin.toml");
-					let res = if plugin_toml.exists() {
-						let content = fs::read_to_string(plugin_toml)?;
-						match toml::from_str::<serde::PluginToml>(&content) {
-							Ok(toml) => Ok(Plugin {
-								data: toml,
-								dir: path,
-							}),
-							Err(why) => Err(PluginError::Parsing(why)),
-						}
-					} else {
-						Err(PluginError::NoToml)
-					};
-					plugins.push((path_name, res));
+		if path.is_dir() {
+			let plugin_toml = path.join("plugin.toml");
+			let res = if plugin_toml.exists() {
+				if let Ok(content) = afs::read_to_string(plugin_toml) {
+					match toml::from_str::<serde::PluginToml>(&content) {
+						Ok(toml) => Ok(Plugin {
+							data: toml,
+							dir: path.to_owned()
+						}),
+						Err(why) => Err(PluginError::Parsing(why)),
+					}
+				} else {
+					Err(PluginError::NoToml)
 				}
-			}
-			Err(why) => error!("Failed to read dir entry in autorun/plugins: {why}"),
+			} else {
+				Err(PluginError::NoToml)
+			};
+
+			plugins.push((path_name, res));
 		}
-	}
+	})?;
+
 	Ok(plugins)
 }
 
@@ -205,7 +296,7 @@ pub fn call_hook(l: LuaState, env: &AutorunEnv) -> Result<(), PluginError> {
 }
 
 pub fn init() -> Result<(), PluginError> {
-	let plugin_dir = configs::path(PLUGIN_DIR);
+	let plugin_dir = afs::in_autorun(PLUGIN_DIR);
 	if !plugin_dir.exists() {
 		fs::create_dir(&plugin_dir)?;
 	}

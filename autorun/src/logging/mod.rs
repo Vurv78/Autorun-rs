@@ -4,7 +4,7 @@ use fs_err as fs;
 use once_cell::sync::Lazy;
 use thiserror::Error;
 
-use crate::configs;
+use crate::fs::{self as afs, LOG_DIR};
 
 #[derive(Error, Debug)]
 pub enum LogInitError {
@@ -13,7 +13,7 @@ pub enum LogInitError {
 }
 
 pub static LOG_PATH: Lazy<PathBuf> = Lazy::new(|| {
-	let log_dir = configs::path(configs::LOG_DIR);
+	let log_dir = afs::in_autorun(LOG_DIR);
 	log_dir.join(format!("{}.log", chrono::Local::now().format("%Y-%m-%d")))
 });
 

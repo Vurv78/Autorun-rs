@@ -4,6 +4,7 @@
 use rglua::prelude::*;
 
 mod configs;
+mod fs;
 
 #[macro_use]
 mod logging;

@@ -3,13 +3,11 @@ use once_cell::sync::Lazy;
 use rglua::prelude::*;
 use std::{
 	ffi::CStr,
-	sync::{Arc, Mutex}, mem::MaybeUninit,
+	sync::{Arc, Mutex}, mem::MaybeUninit, path::PathBuf,
 };
 
-use fs_err as fs;
-
 use crate::{
-	configs,
+	fs::{self as afs, INCLUDE_DIR, BIN_DIR, FSPath},
 	logging::*,
 	lua::{self, err},
 };
@@ -134,11 +132,68 @@ pub fn require(l: LuaState) -> Result<i32, RequireError> {
 	use rglua::prelude::*;
 
 	let raw_path = luaL_checkstring(l, 1);
-	let path = unsafe { CStr::from_ptr(raw_path) };
-	let path_name = path.to_string_lossy();
+	let path_name = unsafe { CStr::from_ptr(raw_path) };
+	let path_name = path_name.to_string_lossy();
 
-	let path = configs::path(configs::INCLUDE_DIR).join(path_name.as_ref());
-	let script = fs::read_to_string(&path)?;
+	let mut path = PathBuf::from( path_name.as_ref() );
+
+	if path.file_name().is_none() {
+		luaL_error(l, cstr!("Malformed require path: '%s'"), raw_path);
+	}
+
+	// Make sure extension is always .lua
+	match path.extension() {
+		Some(ext) if ext == "lua" => (),
+		Some(_) => {
+			luaL_error(l, cstr!("Malformed require path: '%s' (needs .lua file extension)"), raw_path);
+		},
+		_ => {
+			path.set_extension("lua");
+		}
+	}
+
+	let script;
+	get_func(l, 1); // Get the function calling this to get the fenv
+	if lua_iscfunction(l, -1) == 0 {
+		// Not a C function. Can get the fenv.
+		lua_getfenv(l, -1);
+
+		lua_getfield(l, -1, cstr!("Autorun"));
+		if lua_istable(l, -1) {
+			lua_getfield(l, -1, cstr!("PATH"));
+			if lua_isstring(l, -1) == 1 {
+				let file_path = lua_tostring(l, -1);
+				let file_path = unsafe { CStr::from_ptr(file_path) };
+				let file_path = file_path.to_string_lossy();
+
+				let local_path = FSPath::from( file_path.as_ref() );
+				let local_path = local_path
+					.parent()
+					.unwrap_or(local_path) // pop to directory atop running lua file, e.g. to /src/. Using unwrap_or to avoid panic (just in case)
+					.join(path_name.as_ref());
+
+				if local_path.exists() {
+					script = afs::read_to_string(&local_path)?;
+				} else {
+					let local_path = FSPath::from(INCLUDE_DIR)
+						.join(path_name.as_ref());
+					script = afs::read_to_string(&local_path)?;
+				}
+
+				lua_pop(l, 3); // pop PATH, Autorun and fenv
+			} else {
+				lua_pop(l, 1);
+				luaL_error(l, cstr!("Bad require: Autorun.PATH is not a string"));
+			}
+		} else {
+			lua_pop(l, 1);
+			luaL_error(l, cstr!("Bad require: Autorun table not found"));
+		}
+
+		lua_pop(l, 1); // Pop the function
+	} else {
+		luaL_error(l, cstr!("Cannot use `require` in a C function"));
+	}
 
 	let top = lua_gettop(l);
 
@@ -177,7 +232,7 @@ pub fn requirebin(l: LuaState) -> Result<i32, RequireError> {
 	let dlname = unsafe { CStr::from_ptr(dlname) };
 	let dlname = dlname.to_string_lossy();
 
-	let binpath = configs::path(configs::BIN_DIR);
+	let binpath = afs::in_autorun(BIN_DIR);
 	let mut path = binpath.join(dlname.as_ref());
 
 	if !path.exists() {

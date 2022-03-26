@@ -8,6 +8,7 @@
 ---@field CODE string # Source code of script
 ---@field CODE_LEN integer # Length of source code
 ---@field IP string # IP Address of server
+---@field PATH string # Path to the currently running script, local to /autorun/. Shouldn't really be used (and definitely not modified.)
 Autorun = {}
 
 --- Logs a message to the Autorun console & Logging system (depending on severity)
@@ -27,7 +28,9 @@ Autorun = {}
 ---@param severity integer
 function Autorun.log(message, severity) end
 
---- Requires a lua file relative to autorun/scripts. Does not work with the plugin system yet.
+--- Requires a lua file relative to autorun/scripts OR to the currently running Autorun file.
+--- So if you do ``Autorun.require("foo.lua")`` inside of YourPlugin/src/autorun.lua, it will call YourPlugin/src/foo.lua.
+--- The require'd file will also contain the ``Autorun`` environment and can return a value to be used by the calling script.
 --- Pretty much gmod's include() function.
 --- ## Example
 --- ```lua

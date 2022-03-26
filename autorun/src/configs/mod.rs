@@ -1,28 +1,5 @@
 use fs_err as fs;
 
-// concat! only takes literals.
-// autorun dir has been changed from sautorun-rs to ``autorun``
-macro_rules! adir {
-	() => {
-		"autorun"
-	};
-}
-
-pub const DUMP_DIR: &str = concat!(adir!(), "/lua_dumps");
-pub const LOG_DIR: &str = concat!(adir!(), "/logs");
-pub const INCLUDE_DIR: &str = concat!(adir!(), "/scripts");
-pub const PLUGIN_DIR: &str = concat!(adir!(), "/plugins");
-pub const BIN_DIR: &str = concat!(adir!(), "/bin");
-
-pub const AUTORUN_PATH: &str = concat!(adir!(), "/autorun.lua");
-pub const HOOK_PATH: &str = concat!(adir!(), "/hook.lua");
-pub const SETTINGS_PATH: &str = concat!(adir!(), "/settings.toml");
-
-pub fn path(path: &str) -> std::path::PathBuf {
-	let home = home::home_dir().expect("Couldn't get your home directory!");
-	home.join(path)
-}
-
 // I know I could just derive / impl Default for all of these settings,
 // but then there wouldn't be comments to explain what each setting is for.
 use serde::{Deserialize, Serialize};
@@ -54,11 +31,11 @@ pub struct PluginSettings {
 	pub enabled: bool,
 }
 
-use crate::logging::{error, info};
+use crate::{logging::{error, info}, fs::SETTINGS_PATH};
 
 use once_cell::sync::Lazy;
 pub static SETTINGS: Lazy<Settings> = Lazy::new(|| {
-	let settings_file = path(SETTINGS_PATH);
+	let settings_file = crate::fs::in_autorun(SETTINGS_PATH);
 	let default_settings = include_str!("settings.toml");
 
 	if settings_file.exists() {

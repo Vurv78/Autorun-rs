@@ -1,5 +1,6 @@
 use crate::{
-	configs::{self, SETTINGS},
+	configs::SETTINGS,
+	fs::{self as afs, HOOK_PATH, AUTORUN_PATH},
 	lua::{self, AutorunEnv},
 	plugins,
 };
@@ -20,7 +21,8 @@ pub fn execute(l: LuaState, params: &mut DispatchParams, do_run: &mut bool) {
 			code_len: params.code_len,
 
 			ip: params.ip,
-			plugin: None,
+
+			plugin: None
 		};
 
 		if let Err(why) = plugins::call_autorun(l, &env) {
@@ -28,18 +30,15 @@ pub fn execute(l: LuaState, params: &mut DispatchParams, do_run: &mut bool) {
 		}
 		// This will only run once when HAS_AUTORAN is false, setting it to true.
 		// Will be reset by JoinServer.
-		let ar_path = configs::path(configs::AUTORUN_PATH);
-		trace!("Running autorun script at {}", ar_path.display());
-
-		if let Ok(script) = fs::read_to_string(&ar_path) {
-			// Try to run here
-			if let Err(why) = lua::run_env(l, &script, &env) {
+		let full_path = afs::in_autorun(AUTORUN_PATH);
+		if let Ok(script) = fs::read_to_string(&full_path) {
+			if let Err(why) = lua::run_env(l, &script, AUTORUN_PATH, &env) {
 				error!("{why}");
 			}
 		} else {
 			debug!(
 				"Couldn't read your autorun script file at [{}]",
-				ar_path.display()
+				full_path.display()
 			);
 		}
 	}
@@ -64,8 +63,10 @@ pub fn execute(l: LuaState, params: &mut DispatchParams, do_run: &mut bool) {
 			}
 		}
 
-		if let Ok(script) = fs::read_to_string(configs::path(configs::HOOK_PATH)) {
-			match lua::run_env(l, &script, &env) {
+		let path = afs::in_autorun(HOOK_PATH);
+
+		if let Ok(script) = fs::read_to_string(&path) {
+			match lua::run_env(l, &script, &path,&env) {
 				Ok(top) => {
 					// If you return ``true`` in your sautorun/hook.lua file, then don't run the sautorun.CODE that is about to run.
 					match lua_type(l, top + 1) {

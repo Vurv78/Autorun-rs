@@ -1,13 +1,12 @@
-use std::{borrow::Cow, ffi::CString};
+use std::{borrow::Cow, path::Path};
 
-use crate::{hooks, logging::*, lua, plugins::Plugin};
+use crate::{hooks, logging::*, lua};
 
 use autorun_shared::Realm;
 use rglua::prelude::*;
 
 mod env;
 mod err;
-mod fs;
 
 #[cfg(feature = "runner")]
 #[cfg(not(all(target_os = "windows", target_arch = "x86")))]
@@ -44,7 +43,7 @@ pub struct AutorunEnv {
 	pub code: LuaString,
 	pub code_len: usize,
 
-	pub plugin: Option<crate::plugins::Plugin>,
+	pub plugin: Option<crate::plugins::Plugin>
 }
 
 // Functions to interact with lua without triggering the detours
@@ -177,12 +176,14 @@ pub fn run_prepare<S: AsRef<str>, F: Fn(LuaState)>(
 }
 
 // Runs lua, but inside of the `autorun` environment.
-pub fn run_env_prep<S: AsRef<str>, F: Fn(LuaState)>(
+pub fn run_env_prep<S: AsRef<str>, F: Fn(LuaState), P: AsRef<Path>>(
 	l: LuaState,
 	script: S,
+	path: P,
 	env: &AutorunEnv,
 	prep: Option<F>,
 ) -> Result<i32, LuaEnvError> {
+	let path = path.as_ref();
 	run_prepare(l, script, |l| {
 		// Autorun located at -2
 
@@ -202,6 +203,11 @@ pub fn run_env_prep<S: AsRef<str>, F: Fn(LuaState)>(
 		lua_pushboolean(l, env.startup as i32); // stack[3] = startup
 		lua_setfield(l, -2, cstr!("STARTUP")); // stack[2].STARTUP = table.remove(stack, 3)
 
+		let path_str = path.display().to_string();
+		let path_bytes = path_str.as_bytes();
+		lua_pushlstring(l, path_bytes.as_ptr() as _, path_str.len());
+		lua_setfield(l, -2, cstr!("PATH")); // stack[2].PATH = table.remove(stack, 3)
+
 		let fns = reg! [
 			"log" => env::log,
 			"require" => env::require,
@@ -217,113 +223,11 @@ pub fn run_env_prep<S: AsRef<str>, F: Fn(LuaState)>(
 	})
 }
 
-pub fn run_env<S: AsRef<str>>(
+pub fn run_env<S: AsRef<str>, P: AsRef<Path>>(
 	l: LuaState,
 	script: S,
+	path: P,
 	env: &AutorunEnv,
 ) -> Result<i32, LuaEnvError> {
-	run_env_prep::<S, fn(LuaState)>(l, script, env, None)
-}
-
-pub fn run_plugin<S: AsRef<str>>(
-	l: LuaState,
-	script: S,
-	env: &AutorunEnv,
-	plugin: &Plugin,
-) -> Result<i32, LuaEnvError> {
-	run_env_prep(
-		l,
-		script,
-		env,
-		Some(|l| {
-			// print(Autorun.Plugin.NAME, Autorun.Plugin.VERSION)
-
-			lua_createtable(l, 0, 4);
-
-			let name = plugin.get_name();
-			if let Ok(name) = CString::new(name.as_bytes()) {
-				lua_pushstring(l, name.as_ptr());
-				lua_setfield(l, -2, cstr!("NAME"));
-			}
-
-			let version = plugin.get_version();
-			if let Ok(version) = CString::new(version.as_bytes()) {
-				lua_pushstring(l, version.as_ptr());
-				lua_setfield(l, -2, cstr!("VERSION"));
-			}
-
-			let author = plugin.get_author();
-			if let Ok(author) = CString::new(author.as_bytes()) {
-				lua_pushstring(l, author.as_ptr());
-				lua_setfield(l, -2, cstr!("AUTHOR"));
-			}
-
-			if let Some(desc) = plugin.get_description() {
-				if let Ok(desc) = CString::new(desc.as_bytes()) {
-					lua_pushstring(l, desc.as_ptr());
-					lua_setfield(l, -2, cstr!("DESCRIPTION"));
-				}
-			}
-
-			match plugin.get_settings().as_table() {
-				Some(tbl) => {
-					lua_createtable(l, 0, tbl.len() as i32);
-
-					fn push_value(l: LuaState, v: &toml::Value) {
-						match v {
-							toml::Value::String(s) => {
-								let bytes = s.as_bytes();
-								lua_pushlstring(l, bytes.as_ptr() as _, bytes.len());
-							}
-							toml::Value::Integer(n) => lua_pushinteger(l, *n as LuaInteger),
-							toml::Value::Boolean(b) => lua_pushboolean(l, *b as i32),
-
-							toml::Value::Float(f) => lua_pushnumber(l, *f),
-
-							toml::Value::Array(arr) => {
-								lua_createtable(l, arr.len() as i32, 0);
-
-								for (i, v) in arr.iter().enumerate() {
-									push_value(l, v);
-									lua_rawseti(l, -2, i as i32 + 1);
-								}
-							}
-
-							toml::Value::Table(tbl) => {
-								lua_createtable(l, 0, tbl.len() as i32);
-
-								for (k, v) in tbl.iter() {
-									if let Ok(k) = CString::new(k.as_bytes()) {
-										push_value(l, v);
-										lua_setfield(l, -2, k.as_ptr());
-									}
-								}
-							}
-
-							toml::Value::Datetime(time) => {
-								// Just pass a string, smh
-								let time = time.to_string();
-								let bytes = time.as_bytes();
-								lua_pushlstring(l, bytes.as_ptr() as _, bytes.len());
-							}
-						}
-					}
-
-					for (k, v) in tbl.iter() {
-						let k = match CString::new(k.as_bytes()) {
-							Ok(k) => k,
-							Err(_) => continue,
-						};
-
-						push_value(l, v);
-						lua_setfield(l, -2, k.as_ptr());
-					}
-				}
-				None => lua_createtable(l, 0, 0),
-			}
-
-			lua_setfield(l, -2, cstr!("Settings"));
-			lua_setfield(l, -2, cstr!("Plugin"));
-		}),
-	)
+	run_env_prep::<S, fn(LuaState), P>(l, script, path, env, None)
 }

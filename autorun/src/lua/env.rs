@@ -170,7 +170,7 @@ pub fn require(l: LuaState) -> Result<i32, RequireError> {
 				let local_path = local_path
 					.parent()
 					.unwrap_or(local_path) // pop to directory atop running lua file, e.g. to /src/. Using unwrap_or to avoid panic (just in case)
-					.join(path_name.as_ref());
+					.join(path);
 
 				if local_path.exists() {
 					script = afs::read_to_string(&local_path)?;

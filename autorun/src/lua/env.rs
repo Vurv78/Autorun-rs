@@ -228,12 +228,17 @@ pub static LOADED_LIBS: Lazy<Arc<Mutex<Vec<libloading::Library>>>> =
 #[lua_function]
 /// Example usage: require("vistrace") (No extensions or anything.)
 pub fn requirebin(l: LuaState) -> Result<i32, RequireError> {
+	use std::env::consts::{DLL_EXTENSION, DLL_PREFIX};
+
 	let dlname = luaL_checkstring(l, 1);
 	let dlname = unsafe { CStr::from_ptr(dlname) };
 	let dlname = dlname.to_string_lossy();
 
 	let binpath = afs::in_autorun(BIN_DIR);
-	let mut path = binpath.join(dlname.as_ref());
+	let mut path = binpath
+		.join(DLL_PREFIX)
+		.join(dlname.as_ref())
+		.with_extension( DLL_EXTENSION );
 
 	if !path.exists() {
 		let os_prefix = if cfg!(windows) {
@@ -250,13 +255,12 @@ pub fn requirebin(l: LuaState) -> Result<i32, RequireError> {
 			"64"
 		};
 
-		let ext = std::env::consts::DLL_EXTENSION;
-		let altpath = binpath.join(format!("gmcl_{dlname}_{os_prefix}{arch}.{ext}"));
+		let altpath = binpath.join(format!("gmcl_{dlname}_{os_prefix}{arch}.{DLL_EXTENSION}"));
 
 		if altpath.exists() {
 			path = altpath;
 		} else {
-			let altpath = binpath.join(format!("gmsv_{dlname}_{os_prefix}{arch}.{ext}"));
+			let altpath = binpath.join(format!("gmsv_{dlname}_{os_prefix}{arch}.{DLL_EXTENSION}"));
 			if altpath.exists() {
 				path = altpath;
 			} else {
@@ -268,8 +272,9 @@ pub fn requirebin(l: LuaState) -> Result<i32, RequireError> {
 	let lib = unsafe { libloading::Library::new(path)? };
 
 	// Api may be changed.
-	type AutorunEntry = extern "C" fn(l: LuaState) -> i32;
-	type Gmod13Entry = extern "C" fn(l: LuaState) -> i32;
+	type AutorunEntry = extern "C" fn(l: LuaState) -> c_int;
+	type Gmod13Entry = extern "C" fn(l: LuaState) -> c_int;
+	type LuaEntry = extern "C" fn(l: LuaState) -> c_int;
 
 	let n_symbols;
 	if let Ok(autorun_sym) = unsafe { lib.get::<AutorunEntry>(b"autorun_open\0") } {
@@ -277,7 +282,12 @@ pub fn requirebin(l: LuaState) -> Result<i32, RequireError> {
 	} else if let Ok(gmod13_sym) = unsafe { lib.get::<Gmod13Entry>(b"gmod13_open\0") } {
 		n_symbols = gmod13_sym(l);
 	} else {
-		return Err(RequireError::SymbolNotFound);
+		let lua_sym = format!("luaopen_{}\0", dlname);
+		if let Ok(lua_sym) = unsafe { lib.get::<LuaEntry>(lua_sym.as_bytes()) } {
+			n_symbols = lua_sym(l);
+		} else {
+			return Err(RequireError::SymbolNotFound);
+		}
 	}
 
 	if let Ok(mut libs) = LOADED_LIBS.try_lock() {

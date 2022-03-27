@@ -5,6 +5,7 @@ use crate::{
 	ui,
 };
 use logging::*;
+use fs_err as fs;
 
 #[derive(Debug, thiserror::Error)]
 pub enum StartError {
@@ -19,6 +20,9 @@ pub enum StartError {
 
 	#[error("Program panicked!")]
 	Panic,
+
+	#[error("Failed to create essential directory `{0}`")]
+	IO(#[from] std::io::Error),
 }
 
 pub fn startup() -> Result<(), StartError> {
@@ -32,10 +36,30 @@ pub fn startup() -> Result<(), StartError> {
 	// Catch all potential panics to avoid crashing gmod.
 	// Will simply report the error and not do anything.
 	let res: Result<Result<(), StartError>, _> = std::panic::catch_unwind(|| {
-		debug!("Starting: UI");
-		ui::init();
+		use crate::fs as afs;
+
+		// <USER>/autorun/
+		let base = afs::base();
+		if !base.exists() {
+			fs::create_dir(&base)?;
+		}
+
+		// Make sure all essential directories exist
+		for p in [afs::INCLUDE_DIR, afs::LOG_DIR, afs::BIN_DIR, afs::DUMP_DIR, afs::PLUGIN_DIR] {
+			let path = base.join(p);
+			if !path.exists() {
+				fs::create_dir(&path)?;
+			}
+		}
+
+		// Make sure settings exist or create them
+		// If invalid, will panic inside of here to pass the error to the user anyway.
+		once_cell::sync::Lazy::force(&crate::configs::SETTINGS);
 
 		logging::init()?;
+
+		debug!("Starting: UI");
+		ui::init();
 
 		debug!("Starting: Hooks");
 		hooks::init()?;

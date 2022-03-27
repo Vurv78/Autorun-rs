@@ -13,8 +13,8 @@ pub enum LogInitError {
 }
 
 pub static LOG_PATH: Lazy<PathBuf> = Lazy::new(|| {
-	let log_dir = afs::in_autorun(LOG_DIR);
-	log_dir.join(format!("{}.log", chrono::Local::now().format("%Y-%m-%d")))
+	afs::in_autorun(LOG_DIR)
+		.join( format!("{}.log", chrono::Local::now().format("%Y-%m-%d")) )
 });
 
 pub fn init() -> Result<(), LogInitError> {
@@ -30,7 +30,7 @@ pub fn init() -> Result<(), LogInitError> {
 			"[INFO]: Logging started at {}\n",
 			chrono::Local::now()
 		) {
-			debug!("Failed to write initial log message {why}");
+			eprintln!("Failed to write initial log message {why}");
 		}
 	}
 
@@ -44,9 +44,14 @@ macro_rules! log {
 			.append(true)
 			.open(&*$crate::logging::LOG_PATH);
 
-		if let Ok(mut handle) = handle {
-			use std::io::Write;
-			let _ = writeln!(handle, concat!("[", $severity, "]: {}"), $msg);
+		match handle {
+			Ok(mut handle) => {
+				use std::io::Write;
+				let _ = writeln!(handle, concat!("[", $severity, "]: {}"), $msg);
+			},
+			Err(why) => {
+				eprintln!("Failed to open log file: {why}");
+			}
 		}
 	};
 }

@@ -8,7 +8,7 @@ pub struct PluginToml {
 
 #[derive(Deserialize, Debug)]
 pub struct PluginMetadata {
-	pub name: String, // Name of the plugin to be displayed to the user
+	pub name: String,   // Name of the plugin to be displayed to the user
 	pub author: String, // TODO: Maybe make this a list?
 	pub version: String,
 	pub description: Option<String>,

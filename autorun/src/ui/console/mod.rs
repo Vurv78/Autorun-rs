@@ -62,20 +62,19 @@ fn start() {
 		buffer.clear();
 
 		// Loop forever in this thread, since it is separate from Gmod, and take in user input.
-		match std::io::stdin().read_line(&mut buffer) {
-			Err(why) => error!("{why}"),
-			Ok(_) => {
-				let (cmd, rest) = buffer.split_once(' ').unwrap_or((buffer.trim_end(), ""));
+		if let Err(why) = std::io::stdin().read_line(&mut buffer) {
+			error!("{why}");
+		} else {
+			let (cmd, rest) = buffer.split_once(' ').unwrap_or((buffer.trim_end(), ""));
 
-				let rest_trim = rest.trim_end();
-				let args = rest_trim.split(' ');
+			let rest_trim = rest.trim_end();
+			let args = rest_trim.split(' ');
 
-				if let Some(cmd) = commands.get(cmd) {
-					if let Err(why) = (cmd.func)(&commands, args, rest_trim) {
-						error!("{}", why);
-					}
-				};
-			}
+			if let Some(cmd) = commands.get(cmd) {
+				if let Err(why) = (cmd.func)(&commands, args, rest_trim) {
+					error!("{}", why);
+				}
+			};
 		}
 	}
 }
@@ -117,7 +116,7 @@ pub fn hide() {
 			}
 		}
 		Err(why) => {
-			error!("Failed to create systray app! {why}")
+			error!("Failed to create systray app! {why}");
 		}
 	}
 }

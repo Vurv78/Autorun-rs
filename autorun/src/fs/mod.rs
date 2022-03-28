@@ -1,4 +1,4 @@
-use std::path::{PathBuf, Path};
+use std::path::{Path, PathBuf};
 
 use fs_err as fs;
 
@@ -40,17 +40,18 @@ pub fn read_to_string<P: AsRef<Path>>(path: P) -> std::io::Result<String> {
 
 // Reads a directory at a path local to the 'autorun' directory,
 // And then returns results *also* truncated to be local to the 'autorun' directory
-pub fn traverse_dir<P: AsRef<Path>, F: FnMut(&FSPath, fs::DirEntry)>(path: P, mut rt: F) -> std::io::Result<()> {
-	let p = in_autorun( path.as_ref() );
+pub fn traverse_dir<P: AsRef<Path>, F: FnMut(&FSPath, fs::DirEntry)>(
+	path: P,
+	mut rt: F,
+) -> std::io::Result<()> {
+	let p = in_autorun(path.as_ref());
 	let ar_base = base();
 
-	for entry in fs::read_dir(&p)? {
-		if let Ok(entry) = entry {
-			let path = entry.path();
-			let path = path.strip_prefix(&ar_base).unwrap_or(&path);
+	for entry in fs::read_dir(&p)?.flatten() {
+		let path = entry.path();
+		let path = path.strip_prefix(&ar_base).unwrap_or(&path);
 
-			rt( &FSPath::from(path), entry);
-		}
+		rt(&FSPath::from(path), entry);
 	}
 
 	Ok(())

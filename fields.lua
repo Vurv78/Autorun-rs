@@ -36,8 +36,8 @@ function Autorun.log(message, severity) end
 --- ```lua
 --- local Ret = Autorun.require("bar.lua")
 --- ```
----@param path string
----@return any
+---@param path string Path to file to require
+---@return ... values Any values returned by the require'd file.
 function Autorun.require(path) end
 
 --- Prints any values to the Autorun console, with tables with 3 number values ( {1, 2, 3} ) being treated as colors.
@@ -51,9 +51,18 @@ function Autorun.print(...) end
 --- ```lua
 --- local mybin = Autorun.requirebin("CHTTP")
 --- ```
----@param path string
----@return ...
+---@param path string Path to binary module
+---@return ... values Any values returned by the binary module
 function Autorun.requirebin(path) end
+
+--- Reads a file relative to current path, OR inside of your plugin's /data/ folder.
+--- It can have any file extension, so you could read anything from .txt to .json, .lua, .exe, whatever.
+--- ```lua
+--- local data = Autorun.readFile("test.txt") -- (Reads autorun/plugins/MyPlugin/data/test.txt OR autorun/plugins/MyPlugin/src/test.txt)
+--- ```
+---@param path string Path to file
+---@return string contents Contents of the file
+function Autorun.readFile(path) end
 
 ---@class Plugin
 ---@field Settings table # Key value pairs settings retrieved from plugin.toml
@@ -61,3 +70,4 @@ function Autorun.requirebin(path) end
 ---@field AUTHOR string # Author of the plugin
 ---@field NAME string # Display name of the plugin
 ---@field DESCRIPTION string # Description of the plugin
+---@field DIR string # Plugin's directory name (non-display name)

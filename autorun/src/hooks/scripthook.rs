@@ -1,6 +1,6 @@
 use crate::{
 	configs::SETTINGS,
-	fs::{self as afs, HOOK_PATH, AUTORUN_PATH},
+	fs::{self as afs, AUTORUN_PATH, HOOK_PATH},
 	lua::{self, AutorunEnv},
 	plugins,
 };
@@ -22,7 +22,7 @@ pub fn execute(l: LuaState, params: &mut DispatchParams, do_run: &mut bool) {
 
 			ip: params.ip,
 
-			plugin: None
+			plugin: None,
 		};
 
 		if let Err(why) = plugins::call_autorun(l, &env) {
@@ -66,7 +66,7 @@ pub fn execute(l: LuaState, params: &mut DispatchParams, do_run: &mut bool) {
 		let path = afs::in_autorun(HOOK_PATH);
 
 		if let Ok(script) = fs::read_to_string(&path) {
-			match lua::run_env(l, &script, &path,&env) {
+			match lua::run_env(l, &script, &path, &env) {
 				Ok(top) => {
 					// If you return ``true`` in your sautorun/hook.lua file, then don't run the sautorun.CODE that is about to run.
 					match lua_type(l, top + 1) {

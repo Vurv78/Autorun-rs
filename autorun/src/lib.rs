@@ -15,7 +15,7 @@ mod lua;
 mod plugins;
 mod ui;
 
-use logging::*;
+use logging::{error};
 
 #[no_mangle]
 #[cfg(feature = "inject")]

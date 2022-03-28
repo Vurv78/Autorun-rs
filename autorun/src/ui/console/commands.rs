@@ -107,10 +107,10 @@ pub fn list<'a>() -> HashMap<&'a str, Command<'a>> {
 				if script_path.exists() {
 					printerror!(normal, "File does not exist: {script_name}");
 					return Ok(());
-				} else {
-					let content = fs::read_to_string(script_path)?;
-					lua::run(Realm::Menu, content)?;
 				}
+
+				let content = fs::read_to_string(script_path)?;
+				lua::run(Realm::Menu, content)?;
 			} else {
 				printcol!(
 					CYAN,
@@ -184,7 +184,9 @@ pub fn list<'a>() -> HashMap<&'a str, Command<'a>> {
 			};
 
 			let top_left = COORD { X: 0, Y: 0 };
-			let console = unsafe { winapi::um::processenv::GetStdHandle(winapi::um::winbase::STD_OUTPUT_HANDLE) };
+			let console = unsafe {
+				winapi::um::processenv::GetStdHandle(winapi::um::winbase::STD_OUTPUT_HANDLE)
+			};
 
 			let mut screen = MaybeUninit::uninit();
 
@@ -198,13 +200,7 @@ pub fn list<'a>() -> HashMap<&'a str, Command<'a>> {
 			let len_u32 = (screen.dwSize.X as u32).wrapping_mul(screen.dwSize.Y as u32);
 
 			unsafe {
-				FillConsoleOutputCharacterA(
-					console,
-					b' ' as i8,
-					len_u32,
-					top_left,
-					&mut written,
-				);
+				FillConsoleOutputCharacterA(console, b' ' as i8, len_u32, top_left, &mut written);
 
 				FillConsoleOutputAttribute(
 					console,

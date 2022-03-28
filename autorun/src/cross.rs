@@ -4,8 +4,8 @@ use crate::{
 	plugins::{self, PluginError},
 	ui,
 };
-use logging::*;
 use fs_err as fs;
+use logging::*;
 
 #[derive(Debug, thiserror::Error)]
 pub enum StartError {
@@ -45,7 +45,13 @@ pub fn startup() -> Result<(), StartError> {
 		}
 
 		// Make sure all essential directories exist
-		for p in [afs::INCLUDE_DIR, afs::LOG_DIR, afs::BIN_DIR, afs::DUMP_DIR, afs::PLUGIN_DIR] {
+		for p in [
+			afs::INCLUDE_DIR,
+			afs::LOG_DIR,
+			afs::BIN_DIR,
+			afs::DUMP_DIR,
+			afs::PLUGIN_DIR,
+		] {
 			let path = base.join(p);
 			if !path.exists() {
 				fs::create_dir(&path)?;

@@ -46,9 +46,7 @@ pub struct LoggerSettings {
 
 impl Default for LoggerSettings {
 	fn default() -> Self {
-		Self {
-			enabled: true,
-		}
+		Self { enabled: true }
 	}
 }
 
@@ -59,13 +57,11 @@ pub struct PluginSettings {
 
 impl Default for PluginSettings {
 	fn default() -> Self {
-		Self {
-			enabled: true,
-		}
+		Self { enabled: true }
 	}
 }
 
-use crate::{logging::{error, info, debug}, fs::SETTINGS_PATH};
+use crate::fs::SETTINGS_PATH;
 
 use once_cell::sync::Lazy;
 pub static SETTINGS: Lazy<Settings> = Lazy::new(|| {

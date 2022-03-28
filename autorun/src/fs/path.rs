@@ -1,7 +1,10 @@
 // Class abstracting over a PathBuf
 
-use std::{path::{PathBuf, Path}, ops::Deref};
 use super::in_autorun;
+use std::{
+	ops::Deref,
+	path::{Path, PathBuf},
+};
 
 #[derive(Debug)]
 #[repr(transparent)]
@@ -26,11 +29,15 @@ impl FSPath {
 	}
 
 	pub fn to_owned(&self) -> Self {
-		Self(self.0.to_owned())
+		Self(self.0.clone())
 	}
 
 	pub fn parent(&self) -> Option<Self> {
 		self.0.parent().map(|x| Self(x.to_path_buf()))
+	}
+
+	pub fn pop(&mut self) -> bool {
+		self.0.pop()
 	}
 }
 

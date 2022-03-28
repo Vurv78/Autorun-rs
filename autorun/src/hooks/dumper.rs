@@ -6,7 +6,7 @@ use std::{
 	time::Duration,
 };
 
-use crate::{fs as afs, configs::SETTINGS};
+use crate::{configs::SETTINGS, fs as afs};
 use once_cell::sync::Lazy;
 
 use super::DispatchParams;

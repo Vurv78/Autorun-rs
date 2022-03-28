@@ -43,7 +43,7 @@ pub struct AutorunEnv {
 	pub code: LuaString,
 	pub code_len: usize,
 
-	pub plugin: Option<crate::plugins::Plugin>
+	pub plugin: Option<crate::plugins::Plugin>,
 }
 
 // Functions to interact with lua without triggering the detours
@@ -52,7 +52,7 @@ pub fn compile<S: AsRef<str>>(l: LuaState, code: S) -> Result<(), Cow<'static, s
 	unsafe {
 		if hooks::LUAL_LOADBUFFERX_H.call(
 			l,
-			s.as_ptr() as _,
+			s.as_ptr().cast(),
 			s.len(),
 			cstr!("@RunString"),
 			cstr!("bt"),
@@ -97,7 +97,7 @@ pub fn get_state(realm: Realm) -> Result<LuaState, rglua::interface::Error> {
 	let iface = unsafe { engine.GetLuaInterface(realm.into()).as_mut() }
 		.ok_or(rglua::interface::Error::AsMut)?;
 
-	Ok(iface.base as LuaState)
+	Ok(iface.base.cast())
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -126,10 +126,10 @@ pub fn run(realm: Realm, code: String) -> Result<(), RunError> {
 	// Check if lua state is valid for instant feedback
 	let lua = iface!(LuaShared)?;
 	let cl = lua.GetLuaInterface(realm.into());
-	if !cl.is_null() {
-		debug!("Got {realm} interface for run");
-	} else {
+	if cl.is_null() {
 		return Err(RunError::NoLuaInterface);
+	} else {
+		debug!("Got {realm} interface for run");
 	}
 
 	match &mut SCRIPT_QUEUE.try_lock() {
@@ -181,7 +181,7 @@ pub fn run_env_prep<S: AsRef<str>, F: Fn(LuaState), P: AsRef<Path>>(
 	script: S,
 	path: P,
 	env: &AutorunEnv,
-	prep: Option<F>,
+	prep: &Option<F>,
 ) -> Result<i32, LuaEnvError> {
 	let path = path.as_ref();
 	run_prepare(l, script, |l| {
@@ -200,19 +200,20 @@ pub fn run_env_prep<S: AsRef<str>, F: Fn(LuaState), P: AsRef<Path>>(
 		lua_setfield(l, -2, cstr!("IP")); // stack[2].IP = table.remove(stack, 3)
 
 		// If this is running before autorun, set SAUTORUN.STARTUP to true.
-		lua_pushboolean(l, env.startup as i32); // stack[3] = startup
+		lua_pushboolean(l, i32::from(env.startup)); // stack[3] = startup
 		lua_setfield(l, -2, cstr!("STARTUP")); // stack[2].STARTUP = table.remove(stack, 3)
 
 		let path_str = path.display().to_string();
 		let path_bytes = path_str.as_bytes();
-		lua_pushlstring(l, path_bytes.as_ptr() as _, path_str.len());
+		lua_pushlstring(l, path_bytes.as_ptr().cast(), path_str.len());
 		lua_setfield(l, -2, cstr!("PATH")); // stack[2].PATH = table.remove(stack, 3)
 
 		let fns = reg! [
 			"log" => env::log,
 			"require" => env::require,
 			"requirebin" => env::requirebin,
-			"print" => env::print
+			"print" => env::print,
+			"readFile" => env::read
 		];
 
 		luaL_register(l, std::ptr::null_mut(), fns.as_ptr());
@@ -229,5 +230,5 @@ pub fn run_env<S: AsRef<str>, P: AsRef<Path>>(
 	path: P,
 	env: &AutorunEnv,
 ) -> Result<i32, LuaEnvError> {
-	run_env_prep::<S, fn(LuaState), P>(l, script, path, env, None)
+	run_env_prep::<S, fn(LuaState), P>(l, script, path, env, &None)
 }

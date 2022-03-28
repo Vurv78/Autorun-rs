@@ -13,8 +13,7 @@ pub enum LogInitError {
 }
 
 pub static LOG_PATH: Lazy<PathBuf> = Lazy::new(|| {
-	afs::in_autorun(LOG_DIR)
-		.join( format!("{}.log", chrono::Local::now().format("%Y-%m-%d")) )
+	afs::in_autorun(LOG_DIR).join(format!("{}.log", chrono::Local::now().format("%Y-%m-%d")))
 });
 
 pub fn init() -> Result<(), LogInitError> {
@@ -48,7 +47,7 @@ macro_rules! log {
 			Ok(mut handle) => {
 				use std::io::Write;
 				let _ = writeln!(handle, concat!("[", $severity, "]: {}"), $msg);
-			},
+			}
 			Err(why) => {
 				eprintln!("Failed to open log file: {why}");
 			}

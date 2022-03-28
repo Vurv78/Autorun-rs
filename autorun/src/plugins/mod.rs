@@ -5,7 +5,8 @@ use crate::lua::{self, AutorunEnv, LuaEnvError};
 use crate::{logging::*, ui::printcol};
 use fs_err as fs;
 
-use std::ffi::CString;
+use std::borrow::Cow;
+use std::ffi::{CString, OsStr};
 use std::path::Path;
 
 mod serde;
@@ -42,7 +43,7 @@ pub struct Plugin {
 	data: serde::PluginToml,
 
 	/// Path to plugin's directory local to autorun directory
-	dir: FSPath
+	dir: FSPath,
 }
 
 impl Plugin {
@@ -66,6 +67,10 @@ impl Plugin {
 		&self.data.settings
 	}
 
+	pub fn get_dir(&self) -> &FSPath {
+		&self.dir
+	}
+
 	pub fn has_file<N: AsRef<str>>(&self, name: N) -> bool {
 		let name = name.as_ref();
 		let path = self.dir.join(name);
@@ -81,7 +86,7 @@ impl Plugin {
 					match v {
 						toml::Value::String(s) => {
 							let bytes = s.as_bytes();
-							lua_pushlstring(l, bytes.as_ptr() as _, bytes.len());
+							lua_pushlstring(l, bytes.as_ptr().cast(), bytes.len());
 						}
 						toml::Value::Integer(n) => lua_pushinteger(l, *n as LuaInteger),
 						toml::Value::Boolean(b) => lua_pushboolean(l, *b as i32),
@@ -131,13 +136,19 @@ impl Plugin {
 		}
 	}
 
-	pub fn run_lua<S: AsRef<str>, P: AsRef<Path>>(&self, l: LuaState, src: S, path: P, env: &AutorunEnv) -> Result<i32, LuaEnvError> {
+	pub fn run_lua<S: AsRef<str>, P: AsRef<Path>>(
+		&self,
+		l: LuaState,
+		src: S,
+		path: P,
+		env: &AutorunEnv,
+	) -> Result<i32, LuaEnvError> {
 		lua::run_env_prep(
 			l,
 			src,
 			path,
 			env,
-			Some(|l| {
+			&Some(|l| {
 				lua_createtable(l, 0, 4);
 
 				let name = self.get_name();
@@ -156,6 +167,15 @@ impl Plugin {
 				if let Ok(author) = CString::new(author.as_bytes()) {
 					lua_pushstring(l, author.as_ptr());
 					lua_setfield(l, -2, cstr!("AUTHOR"));
+				}
+
+				let dir = self.get_dir();
+				let dirname = dir.file_name();
+				if let Some(d) = dirname {
+					let d = d.to_string_lossy();
+					let bytes = d.as_bytes();
+					lua_pushlstring(l, bytes.as_ptr() as *mut _, bytes.len());
+					lua_setfield(l, -2, cstr!("DIR"));
 				}
 
 				if let Some(desc) = self.get_description() {
@@ -197,8 +217,7 @@ pub fn sanity_check() -> Result<(), PluginError> {
 
 			let path_name = path
 				.file_name()
-				.map(|x| x.to_string_lossy())
-				.unwrap_or_else(|| std::borrow::Cow::Owned(path.display().to_string()));
+				.map_or_else(|| Cow::Owned(path.display().to_string()), OsStr::to_string_lossy);
 
 			if plugin_toml.exists() && (src_autorun.exists() || src_hooks.exists()) {
 				if let Ok(content) = afs::read_to_string(plugin_toml) {
@@ -210,7 +229,10 @@ pub fn sanity_check() -> Result<(), PluginError> {
 						),
 					}
 				} else {
-					error!("Failed to load plugin {}. plugin.toml could not be read.", path_name);
+					error!(
+						"Failed to load plugin {}. plugin.toml could not be read.",
+						path_name
+					);
 				}
 			} else if plugin_toml.exists() {
 				error!("Failed to load plugin {}. plugin.toml exists but no src/autorun.lua or src/hook.lua", path_name);
@@ -236,8 +258,7 @@ pub fn find() -> Result<Vec<PluginFS>, PluginError> {
 	afs::traverse_dir(PLUGIN_DIR, |path, _| {
 		let path_name = path
 			.file_name()
-			.map(|x| x.to_string_lossy().to_string())
-			.unwrap_or_else(|| path.display().to_string());
+			.map_or_else(|| path.display().to_string(), |x| x.to_string_lossy().to_string());
 
 		if path.is_dir() {
 			let plugin_toml = path.join("plugin.toml");
@@ -246,7 +267,7 @@ pub fn find() -> Result<Vec<PluginFS>, PluginError> {
 					match toml::from_str::<serde::PluginToml>(&content) {
 						Ok(toml) => Ok(Plugin {
 							data: toml,
-							dir: path.to_owned()
+							dir: path.to_owned(),
 						}),
 						Err(why) => Err(PluginError::Parsing(why)),
 					}
@@ -285,7 +306,7 @@ pub fn call_autorun(l: LuaState, env: &AutorunEnv) -> Result<(), PluginError> {
 }
 
 /// Run ``hook.lua`` in all plugins.
-/// Does not print out any errors unlike call_autorun.
+/// Does not print out any errors unlike `call_autorun`.
 pub fn call_hook(l: LuaState, env: &AutorunEnv) -> Result<(), PluginError> {
 	for plugin in find()? {
 		if let (_, Ok(plugin)) = plugin {

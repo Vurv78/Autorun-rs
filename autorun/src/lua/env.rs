@@ -192,7 +192,7 @@ pub fn require(l: LuaState) -> Result<i32, RequireError> {
 		luaL_error(l, cstr!("Malformed require path: '%s'"), raw_path);
 	}
 
-	// Make sure extension is always .lua
+	// Make sure extension is always .lua or omitted
 	match path.extension() {
 		Some(ext) if ext == "lua" => (),
 		Some(_) => {
@@ -202,13 +202,13 @@ pub fn require(l: LuaState) -> Result<i32, RequireError> {
 				raw_path,
 			);
 		}
-		_ => {
+		None => {
 			path.set_extension("lua");
 		}
 	}
 
-	let path = get_relative(l, path_name.as_ref())
-		.unwrap_or_else(|| FSPath::from(INCLUDE_DIR).join(path_name.as_ref()));
+	let path = get_relative(l, &path)
+		.unwrap_or_else(|| FSPath::from(INCLUDE_DIR).join(&path));
 
 	if !path.exists() {
 		luaL_error(

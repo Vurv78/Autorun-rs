@@ -13,7 +13,12 @@ pub enum LogInitError {
 }
 
 pub static LOG_PATH: Lazy<PathBuf> = Lazy::new(|| {
-	afs::in_autorun(LOG_DIR).join(format!("{}.log", chrono::Local::now().format("%Y-%m-%d")))
+	let t = time::OffsetDateTime::now_utc();
+
+	// YYYY-MM-DD
+	let filename = format!("{:04}-{:02}-{:02}.log", t.year(), t.month() as u8, t.day());
+	afs::in_autorun(LOG_DIR)
+		.join(filename)
 });
 
 pub fn init() -> Result<(), LogInitError> {
@@ -26,8 +31,9 @@ pub fn init() -> Result<(), LogInitError> {
 		use std::io::Write;
 		if let Err(why) = writeln!(
 			handle,
-			"[INFO]: Logging started at {}\n",
-			chrono::Local::now()
+			"[INFO]: Logging started at {} in version {}\n",
+			time::OffsetDateTime::now_utc(),
+			env!("CARGO_PKG_VERSION")
 		) {
 			eprintln!("Failed to write initial log message {why}");
 		}

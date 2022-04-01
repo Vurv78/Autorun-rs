@@ -26,13 +26,6 @@ pub enum StartError {
 }
 
 pub fn startup() -> Result<(), StartError> {
-	human_panic::setup_panic!(Metadata {
-		name: "Autorun".into(),
-		version: env!("CARGO_PKG_VERSION").into(),
-		authors: "Vurv78 <vurvdevelops@gmail.com>".into(),
-		homepage: "vurv78.github.io".into(),
-	});
-
 	// Catch all potential panics to avoid crashing gmod.
 	// Will simply report the error and not do anything.
 	let res: Result<Result<(), StartError>, _> = std::panic::catch_unwind(|| {

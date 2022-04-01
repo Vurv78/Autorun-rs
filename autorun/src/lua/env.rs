@@ -219,51 +219,6 @@ pub fn require(l: LuaState) -> Result<i32, RequireError> {
 	}
 
 	let script = afs::read_to_string(path)?;
-
-	/*
-	get_func(l, 1); // Get the function calling this to get the fenv
-	if lua_iscfunction(l, -1) == 0 {
-		// Not a C function. Can get the fenv.
-		lua_getfenv(l, -1);
-
-		lua_getfield(l, -1, cstr!("Autorun"));
-		if lua_istable(l, -1) {
-			lua_getfield(l, -1, cstr!("PATH"));
-			if lua_isstring(l, -1) == 1 {
-				let file_path = lua_tostring(l, -1);
-				let file_path = unsafe { CStr::from_ptr(file_path) };
-				let file_path = file_path.to_string_lossy();
-
-				let local_path = FSPath::from( file_path.as_ref() );
-				let local_path = local_path
-					.parent()
-					.unwrap_or(local_path) // pop to directory atop running lua file, e.g. to /src/. Using unwrap_or to avoid panic (just in case)
-					.join(path);
-
-				if local_path.exists() {
-					script = afs::read_to_string(&local_path)?;
-				} else {
-					let local_path = FSPath::from(INCLUDE_DIR)
-						.join(path_name.as_ref());
-					script = afs::read_to_string(&local_path)?;
-				}
-
-				lua_pop(l, 3); // pop PATH, Autorun and fenv
-			} else {
-				lua_pop(l, 1);
-				luaL_error(l, cstr!("Bad require: Autorun.PATH is not a string"));
-			}
-		} else {
-			lua_pop(l, 1);
-			luaL_error(l, cstr!("Bad require: Autorun table not found"));
-		}
-
-		lua_pop(l, 1); // Pop the function
-	} else {
-		luaL_error(l, cstr!("Cannot use `require` in a C function"));
-	}
-	*/
-
 	let top = lua_gettop(l);
 
 	if let Err(why) = lua::compile(l, &script) {

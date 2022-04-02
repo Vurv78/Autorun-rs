@@ -10,6 +10,7 @@ use std::ffi::{CString, OsStr};
 use std::path::Path;
 
 mod serde;
+pub use self::serde::{PluginToml, PluginMetadata};
 
 #[derive(Debug, thiserror::Error)]
 pub enum PluginError {
@@ -44,6 +45,15 @@ pub struct Plugin {
 
 	/// Path to plugin's directory local to autorun directory
 	dir: FSPath,
+}
+
+// Result of running hook.lua
+#[derive(PartialEq)]
+pub enum HookRet {
+	Stop,
+	/// Replace running code
+	Replace(LuaString, usize),
+	Continue
 }
 
 impl Plugin {
@@ -193,6 +203,35 @@ impl Plugin {
 		)
 	}
 
+	/// dofile but if the ran code returns a boolean or string, will return that to Rust.
+	pub fn dohook(&self, l: LuaState, env: &AutorunEnv) -> Result<HookRet, PluginError> {
+		let path = self.dir.join("src/hook.lua");
+		let src = afs::read_to_string(&path)?;
+		let top = self.run_lua(l, &src, &path, env)?;
+
+		let ret = match lua_type(l, top + 1) {
+			rglua::lua::TBOOLEAN => {
+				if lua_toboolean(l, -1) != 0 {
+					Ok(HookRet::Stop)
+				} else {
+					Ok(HookRet::Continue)
+				}
+			},
+
+			rglua::lua::TSTRING => {
+				let mut len: usize = 0;
+				let code = lua_tolstring(l, top + 1, &mut len);
+				Ok( HookRet::Replace(code, len) )
+			}
+
+			_ => Ok( HookRet::Continue )
+		};
+
+		lua_settop(l, top);
+
+		ret
+	}
+
 	pub fn dofile<P: AsRef<Path>>(
 		&self,
 		l: LuaState,
@@ -307,13 +346,31 @@ pub fn call_autorun(l: LuaState, env: &AutorunEnv) -> Result<(), PluginError> {
 
 /// Run ``hook.lua`` in all plugins.
 /// Does not print out any errors unlike `call_autorun`.
-pub fn call_hook(l: LuaState, env: &AutorunEnv) -> Result<(), PluginError> {
+pub fn call_hook(l: LuaState, env: &AutorunEnv, do_run: &mut bool) -> Result<Option<(LuaString, usize)>, PluginError> {
 	for plugin in find()? {
 		if let (_, Ok(plugin)) = plugin {
-			let _ = plugin.dofile(l, "src/hook.lua", env);
+			// All of the plugin hook.lua will still run even if the first plugin returned a string or a boolean.
+			// They will however have their return values ignored.
+			if let Ok(plugin_ret) = plugin.dohook(l, env) {
+				match plugin_ret {
+					HookRet::Continue => (),
+					HookRet::Replace(code, len) => {
+						// Code to edit script and have other plugins ``hook.lua`` filess still run
+						// Not sure if this should be the behavior so just having it abort.
+						// (code, code_len) = (loc_code, loc_len);
+						// env.set_code(code, code_len);
+
+						return Ok( Some( (code, len) ) );
+
+					},
+					HookRet::Stop => {
+						*do_run = false;
+					}
+				}
+			}
 		}
 	}
-	Ok(())
+	Ok(None)
 }
 
 pub fn init() -> Result<(), PluginError> {

@@ -45,11 +45,12 @@ pub fn execute(l: LuaState, params: &mut DispatchParams, do_run: &mut bool) {
 
 	{
 		// hook.lua
-		let env = AutorunEnv {
+		let mut env = AutorunEnv {
 			is_autorun_file: false,
 			startup: params.startup,
 
 			identifier: params.identifier,
+
 			code: params.code,
 			code_len: params.code_len,
 
@@ -58,25 +59,32 @@ pub fn execute(l: LuaState, params: &mut DispatchParams, do_run: &mut bool) {
 		};
 
 		if SETTINGS.plugins.enabled {
-			if let Err(why) = plugins::call_hook(l, &env) {
-				error!("Failed to call plugins (hook): {why}");
+			match plugins::call_hook(l, &mut env, do_run) {
+				Err(why) => {
+					error!("Failed to call plugins (hook): {why}");
+				},
+				Ok( Some( (code, len) )) => {
+					params.set_code(code, len);
+				},
+				Ok(_) => ()
 			}
 		}
 
-		let path = afs::in_autorun(HOOK_PATH);
-
-		if let Ok(script) = fs::read_to_string(&path) {
-			match lua::run_env(l, &script, &path, &env) {
+		if let Ok(script) = afs::read_to_string(HOOK_PATH) {
+			match lua::run_env(l, &script, HOOK_PATH, &env) {
 				Ok(top) => {
-					// If you return ``true`` in your sautorun/hook.lua file, then don't run the sautorun.CODE that is about to run.
+					// If you return ``true`` in your hook.lua file, then don't run the Autorun.CODE that is about to run.
 					match lua_type(l, top + 1) {
 						rglua::lua::TBOOLEAN => {
-							*do_run = lua_toboolean(l, top + 1) == 0;
+							if lua_toboolean(l, top + 1) != 0 {
+								*do_run = false;
+							}
 						}
 						rglua::lua::TSTRING => {
 							// lua_tolstring sets len to new length automatically.
-							let nul_str = lua_tolstring(l, top + 1, &mut params.code_len);
-							params.code = nul_str;
+							let mut len: usize = 0;
+							let newcode = lua_tolstring(l, top + 1, &mut len);
+							params.set_code(newcode, len);
 						}
 						_ => (),
 					}

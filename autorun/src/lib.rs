@@ -25,7 +25,7 @@ extern "system" fn DllMain(_: *const u8, reason: u32, _: *const u8) -> u32 {
 	match reason {
 		DLL_PROCESS_ATTACH => {
 			if let Err(why) = cross::startup() {
-				format!("Failed to start: {why}");
+				error!("Failed to start: {why}");
 			}
 		}
 		DLL_PROCESS_DETACH => {
@@ -46,8 +46,8 @@ pub fn main(l: LuaState) -> i32 {
 	// So only initialize what we haven't already.
 	#[cfg(not(feature = "inject"))]
 	if let Err(why) = cross::startup() {
-		printgm!(l, "Failed to start Autorun: `{}`", why);
-		error!("Failed to start Autorun: `{}`", why);
+		printgm!(l, "Failed to start Autorun: `{why}`");
+		error!("Failed to start Autorun: `{why}`");
 	}
 
 	0
@@ -57,7 +57,7 @@ pub fn main(l: LuaState) -> i32 {
 pub fn close(_l: LuaState) -> i32 {
 	#[cfg(not(feature = "inject"))]
 	if let Err(why) = cross::cleanup() {
-		error!("Failed to cleanup at gmod13_close: {}", why);
+		error!("Failed to cleanup at gmod13_close: {why}");
 	}
 	0
 }

@@ -72,7 +72,7 @@ fn start() {
 
 			if let Some(cmd) = commands.get(cmd) {
 				if let Err(why) = (cmd.func)(&commands, args, rest_trim) {
-					error!("{}", why);
+					crate::ui::printerror!(normal, "Failed to run command: {why}");
 				}
 			};
 		}

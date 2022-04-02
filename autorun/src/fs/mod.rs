@@ -56,3 +56,11 @@ pub fn traverse_dir<P: AsRef<Path>, F: FnMut(&FSPath, fs::DirEntry)>(
 
 	Ok(())
 }
+
+pub fn create_dir(path: &FSPath) -> std::io::Result<()> {
+	fs::create_dir(in_autorun(path))
+}
+
+pub fn create_file(path: &FSPath) -> std::io::Result<fs::File> {
+	fs::File::create(in_autorun(path))
+}

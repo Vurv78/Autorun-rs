@@ -1,12 +1,12 @@
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Serialize, Debug)]
 pub struct PluginToml {
 	pub plugin: PluginMetadata,
 	pub settings: toml::Value,
 }
 
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize, Serialize, Debug)]
 pub struct PluginMetadata {
 	pub name: String,   // Name of the plugin to be displayed to the user
 	pub author: String, // TODO: Maybe make this a list?

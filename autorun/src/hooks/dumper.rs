@@ -45,7 +45,8 @@ pub fn dump(params: &mut DispatchParams) {
 				fmt = fmt.replace("<hostname>", &hostname);
 			}
 
-			let code = unsafe { CStr::from_ptr(params.code) };
+			let (code, _) = params.get_code();
+			let code = unsafe { CStr::from_ptr(code) };
 			let code = code.to_string_lossy().to_string();
 
 			fmt = strip_invalid(&fmt);

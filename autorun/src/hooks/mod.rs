@@ -51,8 +51,10 @@ static CONNECTED: AtomicU64 = AtomicU64::new(99999);
 
 pub struct DispatchParams<'a> {
 	ip: LuaString,
+
 	code: LuaString,
 	code_len: usize,
+
 	identifier: LuaString,
 
 	startup: bool,
@@ -62,87 +64,85 @@ pub struct DispatchParams<'a> {
 	net: &'a mut interface::NetChannelInfo,
 }
 
-fn loadbufferx_hook(
-	l: LuaState,
-	code: LuaString,
-	code_len: usize,
-	identifier: LuaString,
-	mode: LuaString,
-) -> Result<i32, interface::Error> {
-	let mut engine = iface!(EngineClient)?;
-
-	let do_run;
-	if engine.IsConnected() {
-		let net = engine.GetNetChannelInfo();
-
-		if let Some(net) = unsafe { net.as_mut() } {
-			let ip = net.GetAddress();
-			let mut startup = false;
-
-			// TODO: It'd be great to hook net connections instead of doing this.
-			// However, this works fine for now.
-			let curtime = net.GetTimeConnected() as u64;
-			if curtime < CONNECTED.load(Ordering::Relaxed) {
-				debug!("Curtime is less than last time connected, assuming startup");
-				startup = true;
-
-				if let Err(why) = close_dylibs() {
-					debug!("Failed to close dynamic libs: {why}");
-				}
-			}
-
-			// Awful
-			CONNECTED.store(curtime, Ordering::Relaxed);
-
-			let path = unsafe { CStr::from_ptr(identifier) };
-			let path = &path.to_string_lossy()[1..]; // Remove the @ from the beginning of the path
-
-			// There's way too many params here
-			let params = DispatchParams {
-				ip,
-				code,
-				code_len,
-				identifier,
-				startup,
-				path,
-
-				engine: &mut engine,
-				net,
-			};
-
-			do_run = dispatch(l, params);
-			if !do_run {
-				return Ok(0);
-			}
-		}
+impl<'a> DispatchParams<'a> {
+	pub fn set_code(&mut self, code: LuaString, code_len: usize) {
+		self.code = code;
+		self.code_len = code_len;
 	}
 
-	unsafe { Ok(LUAL_LOADBUFFERX_H.call(l, code, code_len, identifier, mode)) }
+	pub fn get_code(&self) -> (LuaString, usize) {
+		(self.code, self.code_len)
+	}
 }
 
 extern "C" fn loadbufferx_h(
 	l: LuaState,
-	code: LuaString,
-	len: SizeT,
+	mut code: LuaString,
+	mut code_len: SizeT,
 	identifier: LuaString,
 	mode: LuaString,
 ) -> i32 {
-	match loadbufferx_hook(l, code, len, identifier, mode) {
-		Ok(x) => x,
-		Err(why) => {
-			error!("Failed to run loadbufferx hook: {}", why);
+	if let Ok(mut engine) = iface!(EngineClient) {
+		let do_run;
+		if engine.IsConnected() {
+			let net = engine.GetNetChannelInfo();
 
-			unsafe { LUAL_LOADBUFFERX_H.call(l, code, len, identifier, mode) }
+			if let Some(net) = unsafe { net.as_mut() } {
+				let ip = net.GetAddress();
+				let mut startup = false;
+
+				// TODO: It'd be great to hook net connections instead of doing this.
+				// However, this works fine for now.
+				let curtime = net.GetTimeConnected() as u64;
+				if curtime < CONNECTED.load(Ordering::Relaxed) {
+					debug!("Curtime is less than last time connected, assuming startup");
+					startup = true;
+
+					if let Err(why) = close_dylibs() {
+						debug!("Failed to close dynamic libs: {why}");
+					}
+				}
+
+				// Awful
+				CONNECTED.store(curtime, Ordering::Relaxed);
+
+				let path = unsafe { CStr::from_ptr(identifier) };
+				let path = &path.to_string_lossy()[1..]; // Remove the @ from the beginning of the path
+
+				// There's way too many params here
+				let mut params = DispatchParams {
+					ip,
+
+					code: code,
+					code_len: code_len,
+
+					identifier,
+					startup,
+					path,
+
+					engine: &mut engine,
+					net,
+				};
+
+				do_run = dispatch(l, &mut params);
+				if do_run {
+					(code, code_len) = params.get_code();
+				} else {
+					return 0;
+				}
+			}
 		}
 	}
+
+	unsafe { LUAL_LOADBUFFERX_H.call(l, code, code_len, identifier, mode) }
 }
 
-pub fn dispatch(l: LuaState, mut params: DispatchParams) -> bool {
+pub fn dispatch(l: LuaState, params: &mut DispatchParams) -> bool {
 	let mut do_run = true;
 
-	scripthook::execute(l, &mut params, &mut do_run);
+	scripthook::execute(l, params, &mut do_run);
 	if SETTINGS.filesteal.enabled {
-		dumper::dump(&mut params);
+		dumper::dump(params);
 	}
 
 	do_run

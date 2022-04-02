@@ -46,6 +46,17 @@ pub struct AutorunEnv {
 	pub plugin: Option<crate::plugins::Plugin>,
 }
 
+impl AutorunEnv {
+	pub fn set_code(&mut self, code: LuaString, code_len: usize) {
+		self.code = code;
+		self.code_len = code_len;
+	}
+
+	pub fn get_code(&self) -> (LuaString, usize) {
+		(self.code, self.code_len)
+	}
+}
+
 // Functions to interact with lua without triggering the detours
 pub fn compile<S: AsRef<str>>(l: LuaState, code: S) -> Result<(), Cow<'static, str>> {
 	let s = code.as_ref();
@@ -199,7 +210,7 @@ pub fn run_env_prep<S: AsRef<str>, F: Fn(LuaState), P: AsRef<Path>>(
 		lua_pushstring(l, env.ip);
 		lua_setfield(l, -2, cstr!("IP")); // stack[2].IP = table.remove(stack, 3)
 
-		// If this is running before autorun, set SAUTORUN.STARTUP to true.
+		// If this is running before autorun, set Autorun.STARTUP to true.
 		lua_pushboolean(l, i32::from(env.startup)); // stack[3] = startup
 		lua_setfield(l, -2, cstr!("STARTUP")); // stack[2].STARTUP = table.remove(stack, 3)
 

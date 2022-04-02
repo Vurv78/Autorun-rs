@@ -305,13 +305,10 @@ pub fn requirebin(l: LuaState) -> Result<i32, RequireError> {
 		n_symbols = autorun_sym(l);
 	} else if let Ok(gmod13_sym) = unsafe { lib.get::<Gmod13Entry>(b"gmod13_open\0") } {
 		n_symbols = gmod13_sym(l);
+	} else if let Ok(lua_sym) = unsafe { lib.get::<LuaEntry>(b"lua_open\0") } {
+		n_symbols = lua_sym(l);
 	} else {
-		let lua_sym = format!("luaopen_{}\0", dlname);
-		if let Ok(lua_sym) = unsafe { lib.get::<LuaEntry>(lua_sym.as_bytes()) } {
-			n_symbols = lua_sym(l);
-		} else {
-			return Err(RequireError::SymbolNotFound);
-		}
+		return Err(RequireError::SymbolNotFound);
 	}
 
 	if let Ok(mut libs) = LOADED_LIBS.try_lock() {

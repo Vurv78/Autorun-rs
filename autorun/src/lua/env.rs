@@ -43,7 +43,6 @@ pub fn print(l: LuaState) -> i32 {
 	// Buffer that is re-used for every color found
 	let mut buf = String::new();
 
-	// Walk through args backwards. Every color will affect all of the text prior.
 	let mut color: Option<(u8, u8, u8)> = None;
 	for i in 1..=nargs {
 		match lua_type(l, i) {
@@ -207,8 +206,7 @@ pub fn require(l: LuaState) -> Result<i32, RequireError> {
 		}
 	}
 
-	let path = get_relative(l, &path)
-		.unwrap_or_else(|| FSPath::from(INCLUDE_DIR).join(&path));
+	let path = get_relative(l, &path).unwrap_or_else(|| FSPath::from(INCLUDE_DIR).join(&path));
 
 	if !path.exists() {
 		luaL_error(

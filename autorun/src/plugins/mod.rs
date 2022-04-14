@@ -10,7 +10,7 @@ use std::ffi::{CString, OsStr};
 use std::path::Path;
 
 mod serde;
-pub use self::serde::{PluginToml, PluginMetadata};
+pub use self::serde::{PluginMetadata, PluginToml};
 
 #[derive(Debug, thiserror::Error)]
 pub enum PluginError {
@@ -53,7 +53,7 @@ pub enum HookRet {
 	Stop,
 	/// Replace running code
 	Replace(LuaString, usize),
-	Continue
+	Continue,
 }
 
 impl Plugin {
@@ -216,15 +216,15 @@ impl Plugin {
 				} else {
 					Ok(HookRet::Continue)
 				}
-			},
+			}
 
 			rglua::lua::TSTRING => {
 				let mut len: usize = 0;
 				let code = lua_tolstring(l, top + 1, &mut len);
-				Ok( HookRet::Replace(code, len) )
+				Ok(HookRet::Replace(code, len))
 			}
 
-			_ => Ok( HookRet::Continue )
+			_ => Ok(HookRet::Continue),
 		};
 
 		lua_settop(l, top);
@@ -254,9 +254,10 @@ pub fn sanity_check() -> Result<(), PluginError> {
 			let src_autorun = path.join("src/autorun.lua");
 			let src_hooks = path.join("src/hook.lua");
 
-			let path_name = path
-				.file_name()
-				.map_or_else(|| Cow::Owned(path.display().to_string()), OsStr::to_string_lossy);
+			let path_name = path.file_name().map_or_else(
+				|| Cow::Owned(path.display().to_string()),
+				OsStr::to_string_lossy,
+			);
 
 			if plugin_toml.exists() && (src_autorun.exists() || src_hooks.exists()) {
 				if let Ok(content) = afs::read_to_string(plugin_toml) {
@@ -295,9 +296,10 @@ pub fn find() -> Result<Vec<PluginFS>, PluginError> {
 	let mut plugins = vec![];
 
 	afs::traverse_dir(PLUGIN_DIR, |path, _| {
-		let path_name = path
-			.file_name()
-			.map_or_else(|| path.display().to_string(), |x| x.to_string_lossy().to_string());
+		let path_name = path.file_name().map_or_else(
+			|| path.display().to_string(),
+			|x| x.to_string_lossy().to_string(),
+		);
 
 		if path.is_dir() {
 			let plugin_toml = path.join("plugin.toml");
@@ -346,7 +348,11 @@ pub fn call_autorun(l: LuaState, env: &AutorunEnv) -> Result<(), PluginError> {
 
 /// Run ``hook.lua`` in all plugins.
 /// Does not print out any errors unlike `call_autorun`.
-pub fn call_hook(l: LuaState, env: &AutorunEnv, do_run: &mut bool) -> Result<Option<(LuaString, usize)>, PluginError> {
+pub fn call_hook(
+	l: LuaState,
+	env: &AutorunEnv,
+	do_run: &mut bool,
+) -> Result<Option<(LuaString, usize)>, PluginError> {
 	for plugin in find()? {
 		if let (_, Ok(plugin)) = plugin {
 			// All of the plugin hook.lua will still run even if the first plugin returned a string or a boolean.
@@ -360,9 +366,8 @@ pub fn call_hook(l: LuaState, env: &AutorunEnv, do_run: &mut bool) -> Result<Opt
 						// (code, code_len) = (loc_code, loc_len);
 						// env.set_code(code, code_len);
 
-						return Ok( Some( (code, len) ) );
-
-					},
+						return Ok(Some((code, len)));
+					}
 					HookRet::Stop => {
 						*do_run = false;
 					}

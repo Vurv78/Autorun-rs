@@ -30,6 +30,7 @@ pub fn dump(params: &mut DispatchParams) {
 		// Ignore paths that are ridiculously long
 		if let Ok(mut queue) = DUMP_QUEUE.try_lock() {
 			let mut fmt = SETTINGS.filesteal.format.clone();
+
 			if fmt.contains("<ip>") {
 				let ip = unsafe { CStr::from_ptr(params.ip) };
 				let ip = ip.to_string_lossy();

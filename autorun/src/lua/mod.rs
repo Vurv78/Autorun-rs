@@ -46,17 +46,6 @@ pub struct AutorunEnv {
 	pub plugin: Option<crate::plugins::Plugin>,
 }
 
-impl AutorunEnv {
-	pub fn set_code(&mut self, code: LuaString, code_len: usize) {
-		self.code = code;
-		self.code_len = code_len;
-	}
-
-	pub fn get_code(&self) -> (LuaString, usize) {
-		(self.code, self.code_len)
-	}
-}
-
 // Functions to interact with lua without triggering the detours
 pub fn compile<S: AsRef<str>>(l: LuaState, code: S) -> Result<(), Cow<'static, str>> {
 	let s = code.as_ref();

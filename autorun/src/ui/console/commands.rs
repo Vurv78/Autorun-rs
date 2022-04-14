@@ -17,7 +17,7 @@ pub enum CommandError {
 	IO(#[from] std::io::Error),
 
 	#[error("Serializing error: {0}")]
-	Ser(#[from] toml::ser::Error)
+	Ser(#[from] toml::ser::Error),
 }
 
 type CommandArgs<'a> = std::str::Split<'a, char>;
@@ -244,15 +244,11 @@ pub fn list<'a>() -> HashMap<&'a str, Command<'a>> {
 								formatcol!(BRIGHT_GREEN, "<name>")
 							)
 						);
-					},
+					}
 
 					"list" => {
 						if let Ok(plugins) = plugins::find() {
-							printcol!(
-								WHITE,
-								"[{}]:",
-								formatcol!(CYAN, "Plugin List")
-							);
+							printcol!(WHITE, "[{}]:", formatcol!(CYAN, "Plugin List"));
 
 							for (dirname, plugin) in plugins {
 								printcol!(
@@ -268,7 +264,7 @@ pub fn list<'a>() -> HashMap<&'a str, Command<'a>> {
 												formatcol!(YELLOW, "{}", plugin.get_version()),
 												formatcol!(BLUE, "{}", plugin.get_author())
 											)
-										},
+										}
 										Err(why) => {
 											formatcol!(WHITE, on_bright_red, "Malformed {}", why)
 										}
@@ -278,19 +274,21 @@ pub fn list<'a>() -> HashMap<&'a str, Command<'a>> {
 						} else {
 							printerror!(normal, "Failed to find any plugins");
 						}
-					},
+					}
 
 					"new" => {
 						if let Some(plugin_name) = args.next() {
 							use crate::fs as afs;
 
-							let path = afs::FSPath::from(afs::PLUGIN_DIR)
-								.join(plugin_name);
+							let path = afs::FSPath::from(afs::PLUGIN_DIR).join(plugin_name);
 
 							if plugin_name.trim().is_empty() {
 								printerror!(normal, "Plugin name cannot be empty");
 							} else if path.extension().is_some() {
-								printerror!(normal, "Malformed plugin name (did not expect file extension)");
+								printerror!(
+									normal,
+									"Malformed plugin name (did not expect file extension)"
+								);
 							} else if path.exists() {
 								printerror!(
 									normal,
@@ -301,7 +299,7 @@ pub fn list<'a>() -> HashMap<&'a str, Command<'a>> {
 								use std::io::Write;
 								afs::create_dir(&path)?;
 
-								let mut plugin_toml = afs::create_file( &path.join("plugin.toml") )?;
+								let mut plugin_toml = afs::create_file(&path.join("plugin.toml"))?;
 								let plugin_struct = crate::plugins::PluginToml {
 									// There's way too much to_owned here.
 									// Need to refactor the structure to use borrowed slices
@@ -311,19 +309,21 @@ pub fn list<'a>() -> HashMap<&'a str, Command<'a>> {
 										version: "0.1.0".to_owned(),
 										description: None,
 										language: Some("lua".to_owned()),
-										version_required: Some( env!("CARGO_PKG_VERSION").to_owned() )
+										version_required: Some(
+											env!("CARGO_PKG_VERSION").to_owned(),
+										),
 									},
-									settings: toml::Value::Table( toml::map::Map::new() )
+									settings: toml::Value::Table(toml::map::Map::new()),
 								};
 								write!(plugin_toml, "{}", toml::to_string(&plugin_struct)?)?;
 
 								let src = path.join("src");
 								afs::create_dir(&src)?;
 
-								let mut autorun = afs::create_file( &src.join("autorun.lua") )?;
+								let mut autorun = afs::create_file(&src.join("autorun.lua"))?;
 								writeln!(autorun, "-- Autorun.log(\"Hello, autorun.lua!\")")?;
 
-								let mut hook = afs::create_file( &src.join("hook.lua") )?;
+								let mut hook = afs::create_file(&src.join("hook.lua"))?;
 								writeln!(hook, "-- print(\"Hello, hook.lua!\")")?;
 							}
 						} else {
@@ -334,7 +334,7 @@ pub fn list<'a>() -> HashMap<&'a str, Command<'a>> {
 								formatcol!(BRIGHT_GREEN, "<plugin_name>")
 							);
 						}
-					},
+					}
 
 					other => {
 						if other.trim().is_empty() {
@@ -347,7 +347,7 @@ pub fn list<'a>() -> HashMap<&'a str, Command<'a>> {
 							);
 						} else {
 							printcol!(
-							CYAN,
+								CYAN,
 								"Unknown subcommand: {} (Should be {}, {} or {})",
 								formatcol!(BRIGHT_GREEN, "{}", subcommand),
 								formatcol!(BRIGHT_GREEN, "help"),
@@ -366,7 +366,7 @@ pub fn list<'a>() -> HashMap<&'a str, Command<'a>> {
 				);
 			}
 			Ok(())
-		})
+		}),
 	);
 
 	commands

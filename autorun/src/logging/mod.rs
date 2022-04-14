@@ -17,8 +17,7 @@ pub static LOG_PATH: Lazy<PathBuf> = Lazy::new(|| {
 
 	// YYYY-MM-DD
 	let filename = format!("{:04}-{:02}-{:02}.log", t.year(), t.month() as u8, t.day());
-	afs::in_autorun(LOG_DIR)
-		.join(filename)
+	afs::in_autorun(LOG_DIR).join(filename)
 });
 
 pub fn init() -> Result<(), LogInitError> {

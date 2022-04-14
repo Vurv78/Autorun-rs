@@ -45,7 +45,7 @@ pub fn execute(l: LuaState, params: &mut DispatchParams, do_run: &mut bool) {
 
 	{
 		// hook.lua
-		let mut env = AutorunEnv {
+		let env = AutorunEnv {
 			is_autorun_file: false,
 			startup: params.startup,
 
@@ -59,14 +59,14 @@ pub fn execute(l: LuaState, params: &mut DispatchParams, do_run: &mut bool) {
 		};
 
 		if SETTINGS.plugins.enabled {
-			match plugins::call_hook(l, &mut env, do_run) {
+			match plugins::call_hook(l, &env, do_run) {
 				Err(why) => {
 					error!("Failed to call plugins (hook): {why}");
-				},
-				Ok( Some( (code, len) )) => {
+				}
+				Ok(Some((code, len))) => {
 					params.set_code(code, len);
-				},
-				Ok(_) => ()
+				}
+				Ok(_) => (),
 			}
 		}
 

@@ -113,8 +113,8 @@ extern "C" fn loadbufferx_h(
 				let mut params = DispatchParams {
 					ip,
 
-					code: code,
-					code_len: code_len,
+					code,
+					code_len,
 
 					identifier,
 					startup,

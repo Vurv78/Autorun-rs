@@ -4,8 +4,7 @@ use std::collections::HashMap;
 #[cfg(not(all(target_os = "windows", target_arch = "x86")))]
 use autorun_shared::Realm;
 
-use crate::ui::console::palette::{formatcol, printcol, printerror};
-use crate::{configs::SETTINGS, lua};
+use crate::{ ui::console::palette::{formatcol, printcol, printerror}, configs::SETTINGS, lua, fs as afs};
 use fs_err as fs;
 
 #[derive(Debug, thiserror::Error)]
@@ -80,7 +79,7 @@ pub fn list<'a>() -> HashMap<&'a str, Command<'a>> {
 	);
 
 	#[cfg(feature = "runner")]
-	#[cfg(not(all(target_os = "windows", target_arch = "x86")))]
+	#[cfg(not(target_arch = "x86"))]
 	commands.insert(
 		"lua_run_cl",
 		command!("Runs a lua script", |_, _, rest| {
@@ -90,7 +89,7 @@ pub fn list<'a>() -> HashMap<&'a str, Command<'a>> {
 	);
 
 	#[cfg(feature = "runner")]
-	#[cfg(not(all(target_os = "windows", target_arch = "x86")))]
+	#[cfg(not(target_arch = "x86"))]
 	commands.insert(
 		"lua_run_menu",
 		command!("Runs a lua script from the menu", |_, _, rest| {
@@ -100,19 +99,20 @@ pub fn list<'a>() -> HashMap<&'a str, Command<'a>> {
 	);
 
 	#[cfg(feature = "runner")]
-	#[cfg(not(all(target_os = "windows", target_arch = "x86")))]
+	#[cfg(not(target_arch = "x86"))]
 	commands.insert(
 		"lua_openscript_menu",
 		command!("Opens a lua script from the menu", |_, mut args, _| {
-			if let Some(script_name) = args.next() {
-				let script_path = std::path::Path::new(script_name);
-
-				if script_path.exists() {
-					printerror!(normal, "File does not exist: {script_name}");
-					return Ok(());
+			if let Some(rawpath) = args.next() {
+				let mut path = std::path::PathBuf::from(rawpath);
+				if path.extension().is_none() {
+					path.set_extension("lua");
 				}
 
-				let content = fs::read_to_string(script_path)?;
+				if !path.exists() {
+					path = afs::in_autorun(afs::INCLUDE_DIR).join(path);
+				}
+				let content = fs::read_to_string(path)?;
 				lua::run(Realm::Menu, content)?;
 			} else {
 				printcol!(
@@ -132,16 +132,17 @@ pub fn list<'a>() -> HashMap<&'a str, Command<'a>> {
 	commands.insert(
 		"lua_openscript_cl",
 		command!("Opens a lua script from the menu", |_, mut args, _| {
-			if let Some(script_name) = args.next() {
-				let script_path = std::path::Path::new(script_name);
-
-				if script_path.exists() {
-					let content = fs::read_to_string(script_path)?;
-					lua::run(Realm::Client, content)?;
-				} else {
-					printerror!(normal, "File does not exist: {script_name}");
-					return Ok(());
+			if let Some(rawpath) = args.next() {
+				let mut path = std::path::PathBuf::from(rawpath);
+				if path.extension().is_none() {
+					path.set_extension("lua");
 				}
+
+				if !path.exists() {
+					path = afs::in_autorun(afs::INCLUDE_DIR).join(path);
+				}
+				let content = fs::read_to_string(path)?;
+				lua::run(Realm::Client, content)?;
 			} else {
 				printcol!(
 					CYAN,

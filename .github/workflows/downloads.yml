@@ -1,6 +1,11 @@
 name: Download
 
-on: [push]
+on:
+  push:
+    paths:
+    - 'autorun/src/**'
+    - 'autorun-shared/src/**'
+  workflow_dispatch:
 
 env:
   CARGO_TERM_COLOR: always
@@ -16,12 +21,13 @@ jobs:
         cd autorun
         cargo build --release --verbose
         cd ..
+        move target/i686-pc-windows-msvc/release/autorun.dll gmsv_autorun_win64.dll
 
     - name: Upload DLL
       uses: actions/upload-artifact@v2
       with:
         name: 64 Bit
-        path: target/release/Autorun.dll
+        path: gmsv_autorun_win64.dll
 
   # In the future make this run on an x86 machine https://github.com/actions/runner/issues/423
   build86:
@@ -35,9 +41,10 @@ jobs:
         cd autorun
         cargo build --release --verbose --target=i686-pc-windows-msvc
         cd ..
+        move target/i686-pc-windows-msvc/release/autorun.dll gmsv_autorun_win32.dll
 
     - name: Upload DLL
       uses: actions/upload-artifact@v2
       with:
         name: 32 Bit
-        path: target/i686-pc-windows-msvc/release/autorun.dll
+        path: gmsv_autorun_win32.dll

@@ -11,7 +11,7 @@ env:
   CARGO_TERM_COLOR: always
 
 jobs:
-  build64:
+  upload64:
     runs-on: windows-latest
     steps:
     - uses: actions/checkout@v2
@@ -21,7 +21,7 @@ jobs:
         cd autorun
         cargo build --release --verbose
         cd ..
-        move target/i686-pc-windows-msvc/release/autorun.dll gmsv_autorun_win64.dll
+        move target/release/autorun.dll gmsv_autorun_win64.dll
 
     - name: Upload DLL
       uses: actions/upload-artifact@v2
@@ -30,7 +30,7 @@ jobs:
         path: gmsv_autorun_win64.dll
 
   # In the future make this run on an x86 machine https://github.com/actions/runner/issues/423
-  build86:
+  upload86:
     runs-on: windows-latest
     steps:
     - uses: actions/checkout@v2

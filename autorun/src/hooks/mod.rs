@@ -25,8 +25,7 @@ lazy_detour! {
 		loadbufferx_h
 	);
 
-	#[cfg(feature = "runner")]
-	#[cfg(not(all(target_os = "windows", target_arch = "x86")))]
+	#[cfg(executor)]
 	pub static PAINT_TRAVERSE_H: PaintTraverseFn = (
 		{
 			let vgui = iface!(Panel).expect("Failed to get Panel interface");
@@ -40,11 +39,10 @@ lazy_detour! {
 	);
 }
 
-#[cfg(feature = "runner")]
-#[cfg(not(all(target_os = "windows", target_arch = "x86")))]
+#[cfg(executor)]
 use rglua::interface::Panel;
 
-#[cfg(not(all(target_os = "windows", target_arch = "x86")))]
+#[cfg(executor)]
 type PaintTraverseFn = extern "fastcall" fn(&'static Panel, usize, bool, bool);
 
 static CONNECTED: AtomicU64 = AtomicU64::new(99999);
@@ -148,8 +146,7 @@ pub fn dispatch(l: LuaState, params: &mut DispatchParams) -> bool {
 	do_run
 }
 
-#[cfg(feature = "runner")]
-#[cfg(not(all(target_os = "windows", target_arch = "x86")))]
+#[cfg(executor)]
 extern "fastcall" fn paint_traverse_h(
 	this: &'static Panel,
 	panel_id: usize,
@@ -206,8 +203,7 @@ pub fn init() -> Result<(), HookingError> {
 
 	Lazy::force(&LUAL_LOADBUFFERX_H);
 
-	#[cfg(feature = "runner")]
-	#[cfg(not(all(target_os = "windows", target_arch = "x86")))]
+	#[cfg(executor)]
 	Lazy::force(&PAINT_TRAVERSE_H);
 
 	dumper::start_queue();
@@ -219,8 +215,7 @@ pub fn cleanup() -> Result<(), detour::Error> {
 	unsafe {
 		LUAL_LOADBUFFERX_H.disable()?;
 
-		#[cfg(feature = "runner")]
-		#[cfg(not(all(target_os = "windows", target_arch = "x86")))]
+		#[cfg(executor)]
 		PAINT_TRAVERSE_H.disable()?;
 	}
 

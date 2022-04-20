@@ -78,6 +78,7 @@ macro_rules! trace {
 		()
 	};
 }
+
 pub(crate) use trace;
 
 macro_rules! info {
@@ -115,8 +116,14 @@ macro_rules! debug {
 // We are in a release build, don't print anything.
 #[cfg(not(debug_assertions))]
 macro_rules! debug {
-	($($arg:tt)+) => {
-		()
+	( $($arg:tt)+ ) => {
+		{
+			// Stupid hack to get rust to shut up about not using what's passed to these macros
+			// Since debug! is only disabled on release builds.
+			// Hopefully this doesn't affect compile time since it uses _ :/
+			let _ = format!( $($arg)+ );
+			()
+		}
 	};
 }
 

@@ -26,7 +26,7 @@ pub fn init() {
 		eprintln!("Failed to enable colored output");
 	}
 
-	colored::control::set_override(!SETTINGS.autorun.nocolor.unwrap_or(false));
+	colored::control::set_override( SETTINGS.color_enabled() );
 
 	let version = env!("CARGO_PKG_VERSION");
 	printcol!(

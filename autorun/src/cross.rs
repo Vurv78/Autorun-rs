@@ -1,9 +1,15 @@
 use crate::{
 	hooks::{self, HookingError},
 	logging,
-	plugins::{self, PluginError},
-	ui,
+	ui
 };
+
+#[cfg(plugins)]
+use crate::plugins::{self, PluginError};
+
+#[cfg(http)]
+use crate::version;
+
 use fs_err as fs;
 use logging::*;
 
@@ -15,6 +21,7 @@ pub enum StartError {
 	#[error("Failed to hook functions `{0}`")]
 	HookError(#[from] HookingError),
 
+	#[cfg(plugins)]
 	#[error("Failed to start plugins `{0}`")]
 	PluginError(#[from] PluginError),
 
@@ -39,11 +46,11 @@ pub fn startup() -> Result<(), StartError> {
 
 		// Make sure all essential directories exist
 		for p in [
-			afs::INCLUDE_DIR,
-			afs::LOG_DIR,
-			afs::BIN_DIR,
-			afs::DUMP_DIR,
-			afs::PLUGIN_DIR,
+		afs::INCLUDE_DIR,
+		afs::LOG_DIR,
+		afs::BIN_DIR,
+		afs::DUMP_DIR,
+		afs::PLUGIN_DIR,
 		] {
 			let path = base.join(p);
 			if !path.exists() {
@@ -63,10 +70,16 @@ pub fn startup() -> Result<(), StartError> {
 		debug!("Starting: Hooks");
 		hooks::init()?;
 
-		debug!("Starting: Plugins");
-		plugins::init()?;
+		#[cfg(plugins)]
+		{
+			debug!("Starting: Plugins");
+			plugins::init()?;
+		}
 
 		debug!("Finished Startup!");
+
+		#[cfg(http)]
+		version::check();
 
 		Ok(())
 	});

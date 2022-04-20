@@ -1,24 +1,28 @@
 [package]
 name = "autorun"
-version = "1.2.2"
+version = "1.2.3"
 authors = ["Vurv78 <Vurv78@users.noreply.github.com>"]
 edition = "2021"
+repository = "https://github.com/Vurv78/Autorun-rs"
 publish = false
 
 [lib]
 crate-type = ["cdylib"]
 
 [features]
-default = ["runner", "inject"]
-runner = []
-# Allow Autorun to also be injected through a DllMain export.
-inject = []
+default = ["executor", "inject", "plugins", "colors", "http"]
+
+executor = [] # Executor inside console
+inject = [] # Allow injection through DllMain export
+plugins = []
+colors = [] # Colors in external console
+http = ["tinyget"] # To check for updates and download plugins in the future.
 
 [dependencies]
 autorun-shared = { path = "../autorun-shared" }
-rglua = { version = "3.0.0-beta2" }
+rglua = { path = "../../rglua/rglua" }
 
-lua-patterns = "0.4"
+lupat = { git = "https://github.com/Vurv78/lupat" }
 detour = { version = "0.8", default-features = false }
 
 # Error handling
@@ -41,3 +45,8 @@ libloading = "0.7" # For Autorun.requirebin
 trayicon = "0.1.3"
 time = "0.3"
 colored = "2"
+
+tinyget = { version = "1.0", features = ["https"], optional = true }
+
+[build-dependencies]
+cfg_aliases = "0.1"

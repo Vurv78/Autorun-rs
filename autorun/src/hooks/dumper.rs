@@ -20,8 +20,8 @@ static DUMP_QUEUE: Lazy<Arc<Mutex<Vec<DumpEntry>>>> =
 	Lazy::new(|| Arc::new(Mutex::new(Vec::new())));
 
 fn strip_invalid(str: &str) -> String {
-	let mut pat = lua_patterns::LuaPattern::new(r#"[:<>"|?*]"#);
-	pat.gsub(str, "_")
+	let mut pat = lupat::Pattern::<'_, 1>::new(r#"[:<>"|?*]"#).unwrap();
+	pat.gsub(str, "_").unwrap()
 }
 
 /// Will only be run if filesteal is enabled.

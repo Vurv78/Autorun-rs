@@ -12,8 +12,13 @@ mod logging;
 mod cross;
 mod hooks;
 mod lua;
+
+#[cfg(plugins)]
 mod plugins;
 mod ui;
+
+#[cfg(http)]
+mod version;
 
 use logging::error;
 

@@ -1,7 +1,6 @@
 use std::collections::HashMap;
 
-#[cfg(feature = "runner")]
-#[cfg(not(all(target_os = "windows", target_arch = "x86")))]
+#[cfg(executor)]
 use autorun_shared::Realm;
 
 use crate::{ ui::console::palette::{formatcol, printcol, printerror}, configs::SETTINGS, lua, fs as afs};
@@ -78,8 +77,7 @@ pub fn list<'a>() -> HashMap<&'a str, Command<'a>> {
 		}),
 	);
 
-	#[cfg(feature = "runner")]
-	#[cfg(not(target_arch = "x86"))]
+	#[cfg(executor)]
 	commands.insert(
 		"lua_run_cl",
 		command!("Runs a lua script", |_, _, rest| {
@@ -88,8 +86,7 @@ pub fn list<'a>() -> HashMap<&'a str, Command<'a>> {
 		}),
 	);
 
-	#[cfg(feature = "runner")]
-	#[cfg(not(target_arch = "x86"))]
+	#[cfg(executor)]
 	commands.insert(
 		"lua_run_menu",
 		command!("Runs a lua script from the menu", |_, _, rest| {
@@ -98,8 +95,7 @@ pub fn list<'a>() -> HashMap<&'a str, Command<'a>> {
 		}),
 	);
 
-	#[cfg(feature = "runner")]
-	#[cfg(not(target_arch = "x86"))]
+	#[cfg(executor)]
 	commands.insert(
 		"lua_openscript_menu",
 		command!("Opens a lua script from the menu", |_, mut args, _| {
@@ -127,8 +123,7 @@ pub fn list<'a>() -> HashMap<&'a str, Command<'a>> {
 		}),
 	);
 
-	#[cfg(feature = "runner")]
-	#[cfg(not(all(target_os = "windows", target_arch = "x86")))]
+	#[cfg(executor)]
 	commands.insert(
 		"lua_openscript_cl",
 		command!("Opens a lua script from the menu", |_, mut args, _| {
@@ -222,6 +217,7 @@ pub fn list<'a>() -> HashMap<&'a str, Command<'a>> {
 	);
 
 	// General ``plugin`` command
+	#[cfg(plugins)]
 	commands.insert(
 		"plugin",
 		command!("General plugin command", |_, mut args, _| {
@@ -317,6 +313,10 @@ pub fn list<'a>() -> HashMap<&'a str, Command<'a>> {
 									settings: toml::Value::Table(toml::map::Map::new()),
 								};
 								write!(plugin_toml, "{}", toml::to_string(&plugin_struct)?)?;
+
+								// emmylua definitions
+								let mut fields = afs::create_file(&path.join("fields.lua"))?;
+								write!(fields, "{}", include_str!("../../../../fields.lua"))?;
 
 								let src = path.join("src");
 								afs::create_dir(&src)?;

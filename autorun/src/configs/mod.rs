@@ -9,17 +9,33 @@ pub struct Settings {
 	pub plugins: PluginSettings,
 }
 
+impl Settings {
+	pub fn color_enabled(&self) -> bool {
+		#[allow(deprecated)]
+		!self.autorun.no_color
+			.unwrap_or_else(|| self.autorun.nocolor.unwrap_or(false) )
+	}
+}
+
 #[derive(Debug, Deserialize, Serialize, PartialEq)]
 pub struct AutorunSettings {
 	pub hide: bool,
+	#[deprecated(since = "1.2.3", note = "Use `no_color` instead")]
 	pub nocolor: Option<bool>,
+	pub no_color: Option<bool>,
+	pub check_version: bool
 }
 
 impl Default for AutorunSettings {
 	fn default() -> Self {
+		#[allow(deprecated)]
 		Self {
 			hide: false,
-			nocolor: Some(false),
+
+			nocolor: None,
+
+			no_color: Some(false),
+			check_version: true
 		}
 	}
 }

@@ -2,7 +2,9 @@
 # Whether to hide on startup
 hide = false
 # Whether to disable terminal colors
-nocolor = false
+no_color = false
+# Whether to check if Autorun is outdated on startup
+check_version = true
 
 [plugins]
 # Whether to run saved plugins

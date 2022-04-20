@@ -1,9 +1,12 @@
 use crate::{
 	configs::SETTINGS,
 	fs::{self as afs, AUTORUN_PATH, HOOK_PATH},
-	lua::{self, AutorunEnv},
-	plugins,
+	lua::{self, AutorunEnv}
 };
+
+#[cfg(plugins)]
+use crate::plugins;
+
 use fs_err as fs;
 use rglua::prelude::*;
 
@@ -22,12 +25,15 @@ pub fn execute(l: LuaState, params: &mut DispatchParams, do_run: &mut bool) {
 
 			ip: params.ip,
 
+			#[cfg(plugins)]
 			plugin: None,
 		};
 
+		#[cfg(plugins)]
 		if let Err(why) = plugins::call_autorun(l, &env) {
 			error!("Failed to call plugins (autorun): {why}");
 		}
+
 		// This will only run once when HAS_AUTORAN is false, setting it to true.
 		// Will be reset by JoinServer.
 		let full_path = afs::in_autorun(AUTORUN_PATH);
@@ -55,9 +61,12 @@ pub fn execute(l: LuaState, params: &mut DispatchParams, do_run: &mut bool) {
 			code_len: params.code_len,
 
 			ip: params.ip,
+
+			#[cfg(plugins)]
 			plugin: None,
 		};
 
+		#[cfg(plugins)]
 		if SETTINGS.plugins.enabled {
 			match plugins::call_hook(l, &env, do_run) {
 				Err(why) => {

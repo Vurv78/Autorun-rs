@@ -8,21 +8,12 @@ use rglua::prelude::*;
 mod env;
 mod err;
 
-#[cfg(feature = "runner")]
-#[cfg(not(all(target_os = "windows", target_arch = "x86")))]
-use std::sync::{Arc, Mutex};
-
-#[cfg(feature = "runner")]
-#[cfg(not(all(target_os = "windows", target_arch = "x86")))]
-use once_cell::sync::Lazy;
-
-#[cfg(feature = "runner")]
-#[cfg(not(all(target_os = "windows", target_arch = "x86")))]
-type LuaScript = Vec<(autorun_shared::Realm, String)>;
+#[cfg(executor)] use std::sync::{Arc, Mutex};
+#[cfg(executor)] use once_cell::sync::Lazy;
+#[cfg(executor)] type LuaScript = Vec<(autorun_shared::Realm, String)>;
 
 // Scripts waiting to be ran in painttraverse
-#[cfg(feature = "runner")]
-#[cfg(not(all(target_os = "windows", target_arch = "x86")))]
+#[cfg(executor)]
 pub static SCRIPT_QUEUE: Lazy<Arc<Mutex<LuaScript>>> =
 	Lazy::new(|| Arc::new(Mutex::new(Vec::new())));
 
@@ -43,6 +34,7 @@ pub struct AutorunEnv {
 	pub code: LuaString,
 	pub code_len: usize,
 
+	#[cfg(plugins)]
 	pub plugin: Option<crate::plugins::Plugin>,
 }
 
@@ -114,14 +106,12 @@ pub enum RunError {
 	#[error("Failed to get LUASHARED003 interface")]
 	NoInterface(#[from] rglua::interface::Error),
 
+	#[cfg(executor)]
 	#[error("Failed to get lua interface")]
-	#[cfg(feature = "runner")]
-	#[cfg(not(all(target_os = "windows", target_arch = "x86")))]
 	NoLuaInterface,
 }
 
-#[cfg(feature = "runner")]
-#[cfg(not(all(target_os = "windows", target_arch = "x86")))]
+#[cfg(executor)]
 pub fn run(realm: Realm, code: String) -> Result<(), RunError> {
 	// Check if lua state is valid for instant feedback
 	let lua = iface!(LuaShared)?;

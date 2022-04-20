@@ -23,7 +23,7 @@ mod version;
 use logging::error;
 
 #[no_mangle]
-#[cfg(feature = "inject")]
+#[cfg(inject)]
 extern "system" fn DllMain(_: *const u8, reason: u32, _: *const u8) -> u32 {
 	use winapi::um::winnt::{DLL_PROCESS_ATTACH, DLL_PROCESS_DETACH};
 

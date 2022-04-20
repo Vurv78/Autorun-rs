@@ -1,7 +1,9 @@
 use crate::{configs::SETTINGS, logging::*};
 
 mod commands;
+#[cfg(windows)]
 mod tray;
+
 pub mod palette;
 
 use palette::{formatcol, printcol};
@@ -10,7 +12,9 @@ pub fn init() {
 	unsafe {
 		// Load this library before it starts spamming useless errors into our console.
 		// https://github.com/Vurv78/Autorun-rs/issues/26
-		winapi::um::libloaderapi::LoadLibraryA(rglua::cstr!("vaudio_speex.dll"));
+		libloading::Library::new("vaudio_speex");
+		// winapi::um::libloaderapi::LoadLibraryA(rglua::cstr!("vaudio_speex.dll"));
+		#[cfg(windows)]
 		winapi::um::consoleapi::AllocConsole()
 	};
 
@@ -22,6 +26,7 @@ pub fn init() {
 		"unknown"
 	};
 
+	#[cfg(windows)]
 	if colored::control::set_virtual_terminal(true).is_err() {
 		eprintln!("Failed to enable colored output");
 	}
@@ -81,6 +86,7 @@ fn start() {
 }
 
 pub fn hide() {
+	#[cfg(windows)]
 	if let Err(why) = tray::replace_window() {
 		error!("Failed to hide window: {why}");
 	}

@@ -6,6 +6,6 @@ fn main() {
 		inject: { all(feature = "inject", target_os = "windows") },
 		plugins: { all(feature = "plugins", target_os = "windows") },
 		colors: { all(feature = "colors", target_os = "windows") },
-		http: { feature = "http" }
+		http: { all(feature = "http", target_os = "windows") }
 	}
 }

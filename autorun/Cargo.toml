@@ -38,14 +38,16 @@ once_cell = "1.10"
 
 # Misc
 home = "0.5"
-winapi = { version = "0.3" }
 libloading = "0.7" # For Autorun.requirebin
 
 # Console
-trayicon = "0.1.3"
 time = "0.3"
 colored = "2"
 
+# Windows specific
+[target.'cfg(target_os = "windows")'.dependencies]
+trayicon = "0.1.3"
+winapi = { version = "0.3" }
 tinyget = { version = "1.0", features = ["https"], optional = true }
 
 [build-dependencies]

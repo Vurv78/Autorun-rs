@@ -3,8 +3,8 @@ name: Download
 on:
   push:
     paths:
-    - 'autorun/src/**'
-    - 'autorun-shared/src/**'
+    - 'autorun/**'
+    - 'autorun-shared/**'
   workflow_dispatch:
 
 env:
@@ -26,7 +26,7 @@ jobs:
     - name: Upload DLL
       uses: actions/upload-artifact@v2
       with:
-        name: 64 Bit
+        name: Windows 64 Bit
         path: gmsv_autorun_win64.dll
 
   # In the future make this run on an x86 machine https://github.com/actions/runner/issues/423
@@ -46,5 +46,22 @@ jobs:
     - name: Upload DLL
       uses: actions/upload-artifact@v2
       with:
-        name: 32 Bit
+        name: Windows 32 Bit
         path: gmsv_autorun_win32.dll
+
+  upload64_ubuntu:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v2
+    - name: Build DLL
+      run: |
+        cd autorun
+        cargo build --release --verbose
+        cd ..
+        move target/release/libautorun.so gmsv_autorun_linux64.dll
+
+    - name: Upload DLL
+      uses: actions/upload-artifact@v2
+      with:
+        name: Linux 64 Bit
+        path: gmsv_autorun_linux64.dll

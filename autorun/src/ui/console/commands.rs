@@ -169,6 +169,7 @@ pub fn list<'a>() -> HashMap<&'a str, Command<'a>> {
 
 	// Credit: https://stackoverflow.com/a/6487534/14076600
 	// I had no idea clearing console was this bad on windows..
+	#[cfg(windows)]
 	commands.insert(
 		"clear",
 		command!("Clears the console", |_, _, _| {

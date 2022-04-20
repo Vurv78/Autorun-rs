@@ -20,7 +20,7 @@ http = ["tinyget"] # To check for updates and download plugins in the future.
 
 [dependencies]
 autorun-shared = { path = "../autorun-shared" }
-rglua = { path = "../../rglua/rglua" }
+rglua = { version = "3.0.0-beta2" }
 
 lupat = { git = "https://github.com/Vurv78/lupat" }
 detour = { version = "0.8", default-features = false }

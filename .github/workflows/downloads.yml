@@ -58,7 +58,7 @@ jobs:
         cd autorun
         cargo build --release --verbose
         cd ..
-        move target/release/libautorun.so gmsv_autorun_linux64.dll
+        mv target/release/libautorun.so gmsv_autorun_linux64.dll
 
     - name: Upload DLL
       uses: actions/upload-artifact@v2

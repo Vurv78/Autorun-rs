@@ -12,18 +12,11 @@ pub fn init() {
 	unsafe {
 		// Load this library before it starts spamming useless errors into our console.
 		// https://github.com/Vurv78/Autorun-rs/issues/26
-		libloading::Library::new("vaudio_speex");
+		let _ = libloading::Library::new("vaudio_speex");
 		// winapi::um::libloaderapi::LoadLibraryA(rglua::cstr!("vaudio_speex.dll"));
-		#[cfg(windows)]
-		winapi::um::consoleapi::AllocConsole()
-	};
 
-	let arch = if cfg!(target_arch = "x86") {
-		"x86"
-	} else if cfg!(target_arch = "x86_64") {
-		"x86_64"
-	} else {
-		"unknown"
+		#[cfg(windows)]
+		winapi::um::consoleapi::AllocConsole();
 	};
 
 	#[cfg(windows)]
@@ -39,7 +32,7 @@ pub fn init() {
 		"<====> {} {} {} <====>",
 		formatcol!(CYAN, "Autorun"),
 		formatcol!(RED, bold, "v{}", version),
-		formatcol!(CYAN, "on {}", formatcol!(RED, bold, "{}", arch))
+		formatcol!(CYAN, "on {}", formatcol!(RED, bold, "{}", std::env::consts::ARCH))
 	);
 
 	printcol!(
@@ -61,6 +54,37 @@ pub fn init() {
 }
 
 fn start() {
+	#[cfg(unix)]
+	{
+		use winit::{
+			event::{Event, WindowEvent},
+			event_loop::{ControlFlow, EventLoop},
+			window::WindowBuilder,
+		};
+
+		std::thread::spawn(|| {
+			let event_loop = EventLoop::new();
+			let window = {
+				WindowBuilder::new()
+				.with_title("Autorun")
+				.build(&event_loop)
+				.unwrap()
+			};
+
+			event_loop.run(move |event, _, control_flow| {
+				*control_flow = ControlFlow::Wait;
+
+				match event {
+					Event::WindowEvent {
+						event: WindowEvent::CloseRequested,
+						window_id,
+					} if window_id == window.id() => *control_flow = ControlFlow::Exit,
+					_ => (),
+				}
+			});
+		});
+	}
+
 	let commands = commands::list();
 
 	let mut buffer = String::new();

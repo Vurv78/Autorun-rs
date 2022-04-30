@@ -17,11 +17,42 @@ struct DumpEntry {
 }
 
 static DUMP_QUEUE: Lazy<Arc<Mutex<Vec<DumpEntry>>>> =
-	Lazy::new(|| Arc::new(Mutex::new(Vec::new())));
+Lazy::new(|| Arc::new(Mutex::new(Vec::new())));
 
-fn strip_invalid(str: &str) -> String {
-	let mut pat = lupat::Pattern::<'_, 1>::new(r#"[:<>"|?*]"#).unwrap();
-	pat.gsub(str, "_").unwrap()
+fn fix_path(str: &str) -> Option<String> {
+	let mut buf = String::new();
+
+	let mut dots = 0;
+	for char in str.chars() {
+		match char {
+			':' | '*' | '?' | '"' | '<' | '>' | '|' => {
+				dots = 0;
+				buf.push('_')
+			},
+
+			'/' | '\\' => {
+				// gmod doesn't seem to allow directory traversal like this anyway?
+				if dots >= 2 {
+					return None;
+				}
+
+				dots = 0;
+				buf.push(char)
+			}
+
+			'.' => {
+				dots += 1;
+				buf.push(char);
+			}
+
+			_ => {
+				dots = 0;
+				buf.push(char)
+			},
+		}
+	}
+
+	Some(buf)
 }
 
 /// Will only be run if filesteal is enabled.
@@ -50,15 +81,14 @@ pub fn dump(params: &mut DispatchParams) {
 			let code = unsafe { CStr::from_ptr(code) };
 			let code = code.to_string_lossy().to_string();
 
-			fmt = strip_invalid(&fmt);
-
-			let path_clean = strip_invalid(params.path);
-			let path = PathBuf::from(&fmt).join(path_clean).with_extension("lua");
-
-			queue.push(DumpEntry {
-				path,
-				content: code,
-			});
+			if let Some(fmt) = fix_path(&fmt) {
+				if let Some(path_clean) = fix_path(params.path) {
+					queue.push(DumpEntry {
+						path: PathBuf::from(&fmt).join(path_clean).with_extension("lua"),
+						content: code
+					});
+				}
+			}
 		}
 	}
 }

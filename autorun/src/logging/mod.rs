@@ -73,14 +73,6 @@ macro_rules! warning {
 
 pub(crate) use warning;
 
-macro_rules! trace {
-	( $($arg:tt)+ ) => {
-		()
-	};
-}
-
-pub(crate) use trace;
-
 macro_rules! info {
 	( $($arg:tt)+ ) => {
 		if $crate::configs::SETTINGS.logging.enabled {

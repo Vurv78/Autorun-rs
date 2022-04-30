@@ -122,46 +122,23 @@ macro_rules! formatcol {
 	};
 }
 
-/// ERROR foo bar
-macro_rules! printerror {
-	($effect:ident, $($arg:tt)+) => {
+macro_rules! basic_print {
+	($text:literal, $col:ident, $effect:ident, $($arg:tt)+) => {
 		println!(
 			"{} {}",
-			colored::Colorize::on_bright_red( colored::Colorize::white( colored::Colorize::bold(" ERROR ") ) ),
+			colored::Colorize::$col( colored::Colorize::white( colored::Colorize::bold($text) ) ),
 			$crate::ui::formatcol!(BRIGHT_WHITE, $effect, $($arg)+)
 		)
-	};
+	}
 }
 
-macro_rules! printwarning {
-	($effect:ident, $($arg:tt)+) => {
-		println!(
-			"{} {}",
-			colored::Colorize::on_yellow( colored::Colorize::white( colored::Colorize::bold(" WARN ") ) ),
-			$crate::ui::formatcol!(BRIGHT_WHITE, $effect, $($arg)+)
-		)
-	};
-}
+macro_rules! printerror { ($effect:ident, $($arg:tt)+) => { $crate::ui::basic_print!( " ERROR ", on_bright_red, $effect, $($arg)+) }; }
+macro_rules! printwarning { ($effect:ident, $($arg:tt)+) => { $crate::ui::basic_print!( " WARN ", on_yellow, $effect, $($arg)+) }; }
+macro_rules! printinfo { ($effect:ident, $($arg:tt)+) => { $crate::ui::basic_print!( " INFO ", on_bright_blue, $effect, $($arg)+) }; }
+macro_rules! printdebug { ($effect:ident, $($arg:tt)+) => { $crate::ui::basic_print!( " DEBUG ", on_purple, $effect, $($arg)+) }; }
 
-macro_rules! printinfo {
-	($effect:ident, $($arg:tt)+) => {
-		println!(
-			"{} {}",
-			colored::Colorize::on_bright_blue( colored::Colorize::white( colored::Colorize::bold(" INFO ") ) ),
-			$crate::ui::formatcol!(BRIGHT_WHITE, $effect, $($arg)+)
-		)
-	};
-}
+pub(crate) use {
+	formatcol, printcol, printdebug, printerror, printinfo, printwarning,
 
-#[allow(unused)]
-macro_rules! printdebug {
-	($effect:ident, $($arg:tt)+) => {
-		println!(
-			"{} {}",
-			colored::Colorize::on_purple( colored::Colorize::white( colored::Colorize::bold(" DEBUG ") ) ),
-			$crate::ui::formatcol!(BRIGHT_WHITE, $effect, $($arg)+)
-		)
-	};
-}
-
-pub(crate) use {formatcol, printcol, printdebug, printerror, printinfo, printwarning};
+	basic_print
+};

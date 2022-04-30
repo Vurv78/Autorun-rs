@@ -1,7 +1,7 @@
 use rglua::prelude::*;
 
 use crate::fs::{self as afs, FSPath, PLUGIN_DIR};
-use crate::lua::{self, AutorunEnv, LuaEnvError};
+use crate::lua::{self, LuaEnvError};
 use crate::{logging::*, ui::printcol};
 use fs_err as fs;
 
@@ -12,10 +12,10 @@ use std::path::Path;
 mod serde;
 pub use self::serde::{PluginMetadata, PluginToml};
 
-#[derive(Debug, thiserror::Error)]
+#[derive(Debug, thiserror::Error, Clone)]
 pub enum PluginError {
 	#[error("IO Error: {0}")]
-	IO(#[from] std::io::Error),
+	IO(String),
 
 	#[error("{0}")]
 	LuaEnv(#[from] LuaEnvError),
@@ -146,68 +146,78 @@ impl Plugin {
 		}
 	}
 
+	fn prepare_script<P: AsRef<Path>>(&self, l: LuaState, path: P) {
+		let path = path.as_ref();
+
+		if !lua::push_fenv(l) { return }
+		lua_getfield(l, -1, cstr!("Autorun"));
+
+		println!("prep {} {:?}, {:#?}", lua_gettop(l), path, dump_stack(l));
+		lua::set_path(l, path);
+
+		lua_createtable(l, 0, 5);
+
+		let name = self.get_name();
+		if let Ok(name) = CString::new(name.as_bytes()) {
+			lua_pushstring(l, name.as_ptr());
+			lua_setfield(l, -2, cstr!("NAME"));
+		}
+
+		let version = self.get_version();
+		if let Ok(version) = CString::new(version.as_bytes()) {
+			lua_pushstring(l, version.as_ptr());
+			lua_setfield(l, -2, cstr!("VERSION"));
+		}
+
+		let author = self.get_author();
+		if let Ok(author) = CString::new(author.as_bytes()) {
+			lua_pushstring(l, author.as_ptr());
+			lua_setfield(l, -2, cstr!("AUTHOR"));
+		}
+
+		let dir = self.get_dir();
+		let dirname = dir.file_name();
+		if let Some(d) = dirname {
+			let d = d.to_string_lossy();
+			let bytes = d.as_bytes();
+			lua_pushlstring(l, bytes.as_ptr() as *mut _, bytes.len());
+			lua_setfield(l, -2, cstr!("DIR"));
+		}
+
+		if let Some(desc) = self.get_description() {
+			if let Ok(desc) = CString::new(desc.as_bytes()) {
+				lua_pushstring(l, desc.as_ptr());
+				lua_setfield(l, -2, cstr!("DESCRIPTION"));
+			}
+		}
+
+		self.push_settings(l);
+		lua_setfield(l, -2, cstr!("Settings"));
+
+		lua_setfield(l, -2, cstr!("Plugin"));
+	}
+
 	pub fn run_lua<S: AsRef<str>, P: AsRef<Path>>(
 		&self,
 		l: LuaState,
 		src: S,
-		path: P,
-		env: &AutorunEnv,
+		path: P
 	) -> Result<i32, LuaEnvError> {
-		lua::run_env_prep(
-			l,
-			src,
-			path,
-			env,
-			&Some(|l| {
-				lua_createtable(l, 0, 4);
+		lua::compile(l, src).map_err(|e| LuaEnvError::Compile(e.to_string()))?;
+		self.prepare_script(l, path);
 
-				let name = self.get_name();
-				if let Ok(name) = CString::new(name.as_bytes()) {
-					lua_pushstring(l, name.as_ptr());
-					lua_setfield(l, -2, cstr!("NAME"));
-				}
+		let top = lua_gettop(l);
+		lua::pcall(l).map_err(|e| LuaEnvError::Runtime(e.to_string()))?;
 
-				let version = self.get_version();
-				if let Ok(version) = CString::new(version.as_bytes()) {
-					lua_pushstring(l, version.as_ptr());
-					lua_setfield(l, -2, cstr!("VERSION"));
-				}
-
-				let author = self.get_author();
-				if let Ok(author) = CString::new(author.as_bytes()) {
-					lua_pushstring(l, author.as_ptr());
-					lua_setfield(l, -2, cstr!("AUTHOR"));
-				}
-
-				let dir = self.get_dir();
-				let dirname = dir.file_name();
-				if let Some(d) = dirname {
-					let d = d.to_string_lossy();
-					let bytes = d.as_bytes();
-					lua_pushlstring(l, bytes.as_ptr() as *mut _, bytes.len());
-					lua_setfield(l, -2, cstr!("DIR"));
-				}
-
-				if let Some(desc) = self.get_description() {
-					if let Ok(desc) = CString::new(desc.as_bytes()) {
-						lua_pushstring(l, desc.as_ptr());
-						lua_setfield(l, -2, cstr!("DESCRIPTION"));
-					}
-				}
-
-				self.push_settings(l);
-				lua_setfield(l, -2, cstr!("Settings"));
-
-				lua_setfield(l, -2, cstr!("Plugin"));
-			}),
-		)
+		Ok(top)
 	}
 
 	/// dofile but if the ran code returns a boolean or string, will return that to Rust.
-	pub fn dohook(&self, l: LuaState, env: &AutorunEnv) -> Result<HookRet, PluginError> {
+	/// Assumes it is inside the autorun environment already.
+	pub fn dohook(&self, l: LuaState) -> Result<HookRet, PluginError> {
 		let path = self.dir.join("src/hook.lua");
-		let src = afs::read_to_string(&path)?;
-		let top = self.run_lua(l, &src, &path, env)?;
+		let src = afs::read_to_string(&path).map_err(|x| PluginError::IO(x.to_string()))?;
+		let top = self.run_lua(l, &src, &path)?;
 
 		let ret = match lua_type(l, top + 1) {
 			rglua::lua::TBOOLEAN => {
@@ -235,12 +245,13 @@ impl Plugin {
 	pub fn dofile<P: AsRef<Path>>(
 		&self,
 		l: LuaState,
-		path: P,
-		env: &AutorunEnv,
+		path: P
 	) -> Result<(), PluginError> {
 		let path = self.dir.join(path);
-		let src = afs::read_to_string(&path)?;
-		self.run_lua(l, &src, &path, env)?;
+		let src = afs::read_to_string(&path).map_err(|x| PluginError::IO(x.to_string()))?;
+
+		self.run_lua(l, &src, &path)?;
+
 		Ok(())
 	}
 }
@@ -283,7 +294,7 @@ pub fn sanity_check() -> Result<(), PluginError> {
 				);
 			}
 		}
-	})?;
+	}).map_err(|x| PluginError::IO(x.to_string()))?;
 
 	Ok(())
 }
@@ -292,10 +303,12 @@ pub fn sanity_check() -> Result<(), PluginError> {
 type PluginFS = (String, Result<Plugin, PluginError>);
 
 /// Finds all valid plugins (has plugin.toml, src/autorun.lua or src/hook.lua)
-pub fn find() -> Result<Vec<PluginFS>, PluginError> {
+/// Cache result to only look for changes in plugin system every 15 seconds.
+#[mincache::timed(t = 15, fmt = "secs", reference = true)]
+pub fn find() -> &'static Result<Vec<PluginFS>, PluginError> {
 	let mut plugins = vec![];
 
-	afs::traverse_dir(PLUGIN_DIR, |path, _| {
+	let res = match afs::traverse_dir(PLUGIN_DIR, |path, _| {
 		let path_name = path.file_name().map_or_else(
 			|| path.display().to_string(),
 			|x| x.to_string_lossy().to_string(),
@@ -321,24 +334,34 @@ pub fn find() -> Result<Vec<PluginFS>, PluginError> {
 
 			plugins.push((path_name, res));
 		}
-	})?;
+	}) {
+		Ok(()) => Ok(plugins),
+		Err(why) => Err( PluginError::IO(why.to_string()) )
+	};
 
-	Ok(plugins)
+	Box::leak( Box::new(res) )
 }
 
 /// Run ``autorun.lua`` in all plugins.
-pub fn call_autorun(l: LuaState, env: &AutorunEnv) -> Result<(), PluginError> {
-	for (dirname, plugin) in find()? {
-		match plugin {
-			Ok(plugin) => {
-				if plugin.has_file("src/autorun.lua") {
-					if let Err(why) = plugin.dofile(l, "src/autorun.lua", env) {
-						error!("Error in plugin '{}': [{}]", plugin.get_name(), why);
-					};
+pub fn call_autorun(l: LuaState) -> Result<(), PluginError> {
+	match find() {
+		Err(why) => return Err(why.clone()),
+		Ok(plugins) => {
+			if plugins.is_empty() { return Ok(()) }
+
+			for (dirname, plugin) in plugins {
+				match plugin {
+					Ok(plugin) => {
+						if plugin.has_file("src/autorun.lua") {
+							if let Err(why) = plugin.dofile(l, "src/autorun.lua") {
+								error!("Error in plugin '{}': [{}]", plugin.get_name(), why);
+							};
+						}
+					}
+					Err(why) => {
+						error!("Failed to load plugin @plugins/{dirname}: {}", why);
+					}
 				}
-			}
-			Err(why) => {
-				error!("Failed to load plugin @plugins/{dirname}: {}", why);
 			}
 		}
 	}
@@ -350,53 +373,59 @@ pub fn call_autorun(l: LuaState, env: &AutorunEnv) -> Result<(), PluginError> {
 /// Does not print out any errors unlike `call_autorun`.
 pub fn call_hook(
 	l: LuaState,
-	env: &AutorunEnv,
-	do_run: &mut bool,
+	do_run: &mut bool
 ) -> Result<Option<(LuaString, usize)>, PluginError> {
-	for plugin in find()? {
-		if let (_, Ok(plugin)) = plugin {
-			// All of the plugin hook.lua will still run even if the first plugin returned a string or a boolean.
-			// They will however have their return values ignored.
-			if let Ok(plugin_ret) = plugin.dohook(l, env) {
-				match plugin_ret {
-					HookRet::Continue => (),
-					HookRet::Replace(code, len) => {
-						// Code to edit script and have other plugins ``hook.lua`` filess still run
-						// Not sure if this should be the behavior so just having it abort.
-						// (code, code_len) = (loc_code, loc_len);
-						// env.set_code(code, code_len);
+	match find() {
+		Err(why) => return Err(why.clone()),
+		Ok(plugins) => {
+			if plugins.is_empty() {
+				return Ok(None);
+			}
 
-						return Ok(Some((code, len)));
-					}
-					HookRet::Stop => {
-						*do_run = false;
+			for plugin in plugins {
+				if let (_, Ok(plugin)) = plugin {
+					// All of the plugin hook.lua will still run even if the first plugin returned a string or a boolean.
+					// They will however have their return values ignored.
+					if let Ok(plugin_ret) = plugin.dohook(l) {
+						match plugin_ret {
+							HookRet::Continue => (),
+							HookRet::Replace(code, len) => {
+								return Ok(Some((code, len)));
+							}
+							HookRet::Stop => {
+								*do_run = false;
+							}
+						}
 					}
 				}
 			}
 		}
-	}
+	};
 	Ok(None)
 }
 
 pub fn init() -> Result<(), PluginError> {
 	let plugin_dir = afs::in_autorun(PLUGIN_DIR);
 	if !plugin_dir.exists() {
-		fs::create_dir(&plugin_dir)?;
+		fs::create_dir(&plugin_dir).map_err(|x| PluginError::IO(x.to_string()))?;
 	}
 
 	sanity_check()?;
 
-	let plugins = find()?;
-
-	printcol!(WHITE, "Verifying plugins..");
-	if plugins.is_empty() {
-		printcol!(WHITE, on_green, "{}", "No plugins found!");
-	}
-
-	for plugin in plugins {
-		match plugin {
-			(name, Err(why)) => error!("Failed to verify plugin @plugins/{name}: {}", why),
-			(_, Ok(plugin)) => info!("Verified plugin: {}", plugin.get_name()),
+	match find() {
+		Err(why) => return Err(why.clone()),
+		Ok(plugins) => {
+			printcol!(WHITE, "Verifying plugins..");
+			if plugins.is_empty() {
+				printcol!(WHITE, on_green, "{}", "No plugins found!");
+			} else {
+				for plugin in plugins {
+					match plugin {
+						(name, Err(why)) => error!("Failed to verify plugin @plugins/{name}: {}", why),
+						(_, Ok(plugin)) => info!("Verified plugin: {}", plugin.get_name()),
+					}
+				}
+			}
 		}
 	}
 

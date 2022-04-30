@@ -29,11 +29,6 @@ pub fn execute(l: LuaState, params: &mut DispatchParams, do_run: &mut bool) {
 			plugin: None,
 		};
 
-		#[cfg(plugins)]
-		if let Err(why) = plugins::call_autorun(l, &env) {
-			error!("Failed to call plugins (autorun): {why}");
-		}
-
 		// This will only run once when HAS_AUTORAN is false, setting it to true.
 		// Will be reset by JoinServer.
 		let full_path = afs::in_autorun(AUTORUN_PATH);
@@ -46,6 +41,13 @@ pub fn execute(l: LuaState, params: &mut DispatchParams, do_run: &mut bool) {
 				"Couldn't read your autorun script file at [{}]",
 				full_path.display()
 			);
+		}
+
+		lua::prepare_with_env(l, &env, None);
+
+		#[cfg(plugins)]
+		if let Err(why) = plugins::call_autorun(l) {
+			error!("Failed to call plugins (autorun): {why}");
 		}
 	}
 
@@ -66,18 +68,8 @@ pub fn execute(l: LuaState, params: &mut DispatchParams, do_run: &mut bool) {
 			plugin: None,
 		};
 
-		#[cfg(plugins)]
-		if SETTINGS.plugins.enabled {
-			match plugins::call_hook(l, &env, do_run) {
-				Err(why) => {
-					error!("Failed to call plugins (hook): {why}");
-				}
-				Ok(Some((code, len))) => {
-					params.set_code(code, len);
-				}
-				Ok(_) => (),
-			}
-		}
+		lua::prepare_with_env(l, &env, None);
+		lua::set_path(l, HOOK_PATH);
 
 		if let Ok(script) = afs::read_to_string(HOOK_PATH) {
 			match lua::run_env(l, &script, HOOK_PATH, &env) {
@@ -100,6 +92,19 @@ pub fn execute(l: LuaState, params: &mut DispatchParams, do_run: &mut bool) {
 					lua_settop(l, top);
 				}
 				Err(_why) => (),
+			}
+		}
+
+		#[cfg(plugins)]
+		if SETTINGS.plugins.enabled {
+			match plugins::call_hook(l, do_run) {
+				Err(why) => {
+					error!("Failed to call plugins (hook): {why}");
+				}
+				Ok(Some((code, len))) => {
+					params.set_code(code, len);
+				}
+				Ok(_) => (),
 			}
 		}
 	}

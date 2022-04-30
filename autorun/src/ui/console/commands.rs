@@ -81,7 +81,7 @@ pub fn list<'a>() -> HashMap<&'a str, Command<'a>> {
 	commands.insert(
 		"lua_run_cl",
 		command!("Runs a lua script", |_, _, rest| {
-			lua::run(Realm::Client, rest.to_owned())?;
+			lua::run_async(Realm::Client, rest.to_owned())?;
 			Ok(())
 		}),
 	);
@@ -90,7 +90,7 @@ pub fn list<'a>() -> HashMap<&'a str, Command<'a>> {
 	commands.insert(
 		"lua_run_menu",
 		command!("Runs a lua script from the menu", |_, _, rest| {
-			lua::run(Realm::Menu, rest.to_owned())?;
+			lua::run_async(Realm::Menu, rest.to_owned())?;
 			Ok(())
 		}),
 	);
@@ -109,7 +109,7 @@ pub fn list<'a>() -> HashMap<&'a str, Command<'a>> {
 					path = afs::in_autorun(afs::INCLUDE_DIR).join(path);
 				}
 				let content = fs::read_to_string(path)?;
-				lua::run(Realm::Menu, content)?;
+				lua::run_async(Realm::Menu, content)?;
 			} else {
 				printcol!(
 					CYAN,
@@ -137,7 +137,7 @@ pub fn list<'a>() -> HashMap<&'a str, Command<'a>> {
 					path = afs::in_autorun(afs::INCLUDE_DIR).join(path);
 				}
 				let content = fs::read_to_string(path)?;
-				lua::run(Realm::Client, content)?;
+				lua::run_async(Realm::Client, content)?;
 			} else {
 				printcol!(
 					CYAN,
@@ -369,6 +369,29 @@ pub fn list<'a>() -> HashMap<&'a str, Command<'a>> {
 			}
 			Ok(())
 		}),
+	);
+
+	commands.insert("filesteal",
+		command!("General filesteal commands", |_, mut args, _| {
+			match args.next() {
+				Some("count") => {
+					if let Ok(queue) = crate::hooks::DUMP_QUEUE.try_lock() {
+						println!("{}", queue.len());
+					} else {
+						printerror!(normal, "Failed to lock queue");
+					}
+				},
+				Some(_) | None => {
+					printcol!(
+						CYAN,
+						"Usage: {} {}",
+						formatcol!(YELLOW, "filesteal"),
+						formatcol!(BRIGHT_GREEN, "<subcommand>")
+					);
+				}
+			};
+			Ok(())
+		})
 	);
 
 	commands

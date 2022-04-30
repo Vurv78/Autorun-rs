@@ -1,5 +1,6 @@
 use fs_err as fs;
 
+use once_cell::sync::Lazy;
 use serde::{Deserialize, Serialize};
 #[derive(Debug, Deserialize, Serialize, Default, PartialEq)]
 pub struct Settings {
@@ -79,7 +80,6 @@ impl Default for PluginSettings {
 
 use crate::fs::SETTINGS_PATH;
 
-use once_cell::sync::Lazy;
 pub static SETTINGS: Lazy<Settings> = Lazy::new(|| {
 	let settings_file = crate::fs::in_autorun(SETTINGS_PATH);
 	let default_settings = include_str!("settings.toml");

@@ -20,15 +20,15 @@ pub fn log(l: LuaState) -> i32 {
 	let level = luaL_optinteger(l, 2, 3); // INFO by default
 
 	let msg = unsafe { CStr::from_ptr(s).to_string_lossy() };
+
 	match level {
 		1 => error!("{msg}"),
 		2 => warning!("{msg}"),
 		3 => info!("{msg}"),
 		4 => debug!("{msg}"),
-		5 => trace!("{msg}"),
-		_ => luaL_argerror(l, 2, err::INVALID_LOG_LEVEL),
+		5 => (),
+		_ => luaL_argerror(l, 2, err::INVALID_LOG_LEVEL)
 	}
-
 	0
 }
 
@@ -132,7 +132,7 @@ fn get_func(l: LuaState, level: u32) {
 }
 
 // Pushes the fenv onto the stack
-fn push_fenv(l: LuaState) -> bool {
+pub fn push_fenv(l: LuaState) -> bool {
 	get_func(l, 1);
 
 	if lua_iscfunction(l, -1) == 0 {

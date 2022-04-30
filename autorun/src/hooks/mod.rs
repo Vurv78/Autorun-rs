@@ -11,6 +11,8 @@ use rglua::interface;
 use rglua::prelude::*;
 
 mod dumper;
+pub use dumper::DUMP_QUEUE;
+
 pub mod lazy;
 mod scripthook;
 use lazy::lazy_detour;

@@ -57,7 +57,7 @@ C:\Users\<User>\autorun
 ```
 
 ### 🗃️ Fields
-You can find what is passed to the scripthook environment in [examples/fields.lua](https://github.com/Vurv78/Autorun-rs/blob/main/fields.lua) as an EmmyLua definitions file.  
+You can find what is passed to the scripthook environment in [fields.lua](fields.lua) as an EmmyLua definitions file.  
 This could be used with something like a vscode lua language server extension for intellisense 👍
 
 ### ✍️ Examples

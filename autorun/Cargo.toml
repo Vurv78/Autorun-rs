@@ -47,7 +47,7 @@ colored = "2"
 # Windows specific
 [target.'cfg(windows)'.dependencies]
 trayicon = "0.1.3"
-winapi = { version = "0.3" }
+winapi = { version = "0.3", features = ["wincontypes", "wincon", "processenv", "consoleapi"] }
 tinyget = { version = "1.0", features = ["https"], optional = true }
 
 [target.'cfg(unix)'.dependencies]

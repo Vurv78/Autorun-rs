@@ -207,7 +207,7 @@ impl Plugin {
 	pub fn dohook(&self, l: LuaState, env: &AutorunEnv) -> Result<HookRet, PluginError> {
 		let path = self.dir.join("src/hook.lua");
 		let src = afs::read_to_string(&path)?;
-		let top = self.run_lua(l, &src, &path, env)?;
+		let top = self.run_lua(l, src, &path, env)?;
 
 		let ret = match lua_type(l, top + 1) {
 			rglua::lua::TBOOLEAN => {
@@ -240,7 +240,7 @@ impl Plugin {
 	) -> Result<(), PluginError> {
 		let path = self.dir.join(path);
 		let src = afs::read_to_string(&path)?;
-		self.run_lua(l, &src, &path, env)?;
+		self.run_lua(l, src, &path, env)?;
 		Ok(())
 	}
 }

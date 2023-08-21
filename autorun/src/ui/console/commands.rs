@@ -3,7 +3,11 @@ use std::collections::HashMap;
 #[cfg(executor)]
 use autorun_shared::Realm;
 
-use crate::{ ui::console::palette::{formatcol, printcol, printerror}, configs::SETTINGS, lua, fs as afs};
+use crate::{
+	configs::SETTINGS,
+	fs as afs, lua,
+	ui::console::palette::{formatcol, printcol, printerror},
+};
 use fs_err as fs;
 
 #[derive(Debug, thiserror::Error)]

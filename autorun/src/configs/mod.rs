@@ -12,8 +12,10 @@ pub struct Settings {
 impl Settings {
 	pub fn color_enabled(&self) -> bool {
 		#[allow(deprecated)]
-		!self.autorun.no_color
-			.unwrap_or_else(|| self.autorun.nocolor.unwrap_or(false) )
+		!self
+			.autorun
+			.no_color
+			.unwrap_or_else(|| self.autorun.nocolor.unwrap_or(false))
 	}
 }
 
@@ -23,7 +25,7 @@ pub struct AutorunSettings {
 	#[deprecated(since = "1.2.3", note = "Use `no_color` instead")]
 	pub nocolor: Option<bool>,
 	pub no_color: Option<bool>,
-	pub check_version: bool
+	pub check_version: bool,
 }
 
 impl Default for AutorunSettings {
@@ -35,7 +37,7 @@ impl Default for AutorunSettings {
 			nocolor: None,
 
 			no_color: Some(false),
-			check_version: true
+			check_version: true,
 		}
 	}
 }

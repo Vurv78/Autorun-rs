@@ -122,7 +122,6 @@ macro_rules! debug {
 			// Since debug! is only disabled on release builds.
 			// Hopefully this doesn't affect compile time since it uses _ :/
 			let _ = format!( $($arg)+ );
-			()
 		}
 	};
 }

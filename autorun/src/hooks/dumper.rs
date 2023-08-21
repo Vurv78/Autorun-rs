@@ -17,7 +17,7 @@ struct DumpEntry {
 }
 
 static DUMP_QUEUE: Lazy<Arc<Mutex<Vec<DumpEntry>>>> =
-Lazy::new(|| Arc::new(Mutex::new(Vec::new())));
+	Lazy::new(|| Arc::new(Mutex::new(Vec::new())));
 
 fn fix_path(str: &str) -> Option<String> {
 	let mut buf = String::new();
@@ -28,7 +28,7 @@ fn fix_path(str: &str) -> Option<String> {
 			':' | '*' | '?' | '"' | '<' | '>' | '|' => {
 				dots = 0;
 				buf.push('_')
-			},
+			}
 
 			'/' | '\\' => {
 				// gmod doesn't seem to allow directory traversal like this anyway?
@@ -48,7 +48,7 @@ fn fix_path(str: &str) -> Option<String> {
 			_ => {
 				dots = 0;
 				buf.push(char)
-			},
+			}
 		}
 	}
 
@@ -85,7 +85,7 @@ pub fn dump(params: &mut DispatchParams) {
 				if let Some(path_clean) = fix_path(params.path) {
 					queue.push(DumpEntry {
 						path: PathBuf::from(&fmt).join(path_clean).with_extension("lua"),
-						content: code
+						content: code,
 					});
 				}
 			}
@@ -112,7 +112,7 @@ pub fn queue() {
 
 					let p = path.parent().unwrap_or(&path);
 					if !p.exists() {
-						if let Err(why) = fs::create_dir_all(&p) {
+						if let Err(why) = fs::create_dir_all(p) {
 							debug!("Failed to create directory {}: {}", p.display(), why);
 						}
 					}

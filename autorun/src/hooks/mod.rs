@@ -80,7 +80,7 @@ extern "C" fn loadbufferx_h(
 	identifier: LuaString,
 	mode: LuaString,
 ) -> i32 {
-	if let Ok(mut engine) = iface!(EngineClient) {
+	if let Ok(engine) = iface!(EngineClient) {
 		let do_run;
 		if engine.IsConnected() {
 			let net = engine.GetNetChannelInfo();
@@ -118,7 +118,7 @@ extern "C" fn loadbufferx_h(
 					startup,
 					path,
 
-					engine: &mut engine,
+					engine,
 					net,
 				};
 

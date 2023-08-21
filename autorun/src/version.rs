@@ -1,12 +1,11 @@
 const REPO: &str = env!("CARGO_PKG_REPOSITORY");
-const RELEASES_ENDPOINT: &str = concat!( env!("CARGO_PKG_REPOSITORY"), "/releases/latest" );
+const RELEASES_ENDPOINT: &str = concat!(env!("CARGO_PKG_REPOSITORY"), "/releases/latest");
 
 /// Spawns another thread to check if Autorun is up to date.
 pub fn check() {
 	info!("Checking if Autorun is up to date...");
 	std::thread::spawn(|| {
-		let req = tinyget::get(RELEASES_ENDPOINT)
-			.with_timeout(5);
+		let req = tinyget::get(RELEASES_ENDPOINT).with_timeout(5);
 
 		if let Ok(x) = req.send() {
 			match x.as_str() {
@@ -49,7 +48,7 @@ pub fn check() {
 								None
 							};
 
-							Some( (*major, *minor, *patch, beta) )
+							Some((*major, *minor, *patch, beta))
 						}
 
 						if let Some(latest_version) = parse_semver(after) {

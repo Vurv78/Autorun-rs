@@ -24,7 +24,7 @@ pub fn init() {
 		eprintln!("Failed to enable colored output");
 	}
 
-	colored::control::set_override( SETTINGS.color_enabled() );
+	colored::control::set_override(SETTINGS.color_enabled());
 
 	let version = env!("CARGO_PKG_VERSION");
 	printcol!(
@@ -32,7 +32,11 @@ pub fn init() {
 		"<====> {} {} {} <====>",
 		formatcol!(CYAN, "Autorun"),
 		formatcol!(RED, bold, "v{}", version),
-		formatcol!(CYAN, "on {}", formatcol!(RED, bold, "{}", std::env::consts::ARCH))
+		formatcol!(
+			CYAN,
+			"on {}",
+			formatcol!(RED, bold, "{}", std::env::consts::ARCH)
+		)
 	);
 
 	printcol!(
@@ -66,9 +70,9 @@ fn start() {
 			let event_loop = EventLoop::new();
 			let window = {
 				WindowBuilder::new()
-				.with_title("Autorun")
-				.build(&event_loop)
-				.unwrap()
+					.with_title("Autorun")
+					.build(&event_loop)
+					.unwrap()
 			};
 
 			event_loop.run(move |event, _, control_flow| {

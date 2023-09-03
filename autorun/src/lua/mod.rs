@@ -8,9 +8,12 @@ use rglua::prelude::*;
 mod env;
 mod err;
 
-#[cfg(executor)] use std::sync::{Arc, Mutex};
-#[cfg(executor)] use once_cell::sync::Lazy;
-#[cfg(executor)] type LuaScript = Vec<(autorun_shared::Realm, String)>;
+#[cfg(executor)]
+use once_cell::sync::Lazy;
+#[cfg(executor)]
+use std::sync::{Arc, Mutex};
+#[cfg(executor)]
+type LuaScript = Vec<(autorun_shared::Realm, String)>;
 
 // Scripts waiting to be ran in painttraverse
 #[cfg(executor)]

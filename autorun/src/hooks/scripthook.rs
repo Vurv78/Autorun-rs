@@ -1,7 +1,7 @@
 use crate::{
 	configs::SETTINGS,
 	fs::{self as afs, AUTORUN_PATH, HOOK_PATH},
-	lua::{self, AutorunEnv}
+	lua::{self, AutorunEnv},
 };
 
 #[cfg(plugins)]
@@ -38,7 +38,7 @@ pub fn execute(l: LuaState, params: &mut DispatchParams, do_run: &mut bool) {
 		// Will be reset by JoinServer.
 		let full_path = afs::in_autorun(AUTORUN_PATH);
 		if let Ok(script) = fs::read_to_string(&full_path) {
-			if let Err(why) = lua::run_env(l, &script, AUTORUN_PATH, &env) {
+			if let Err(why) = lua::run_env(l, script, AUTORUN_PATH, &env) {
 				error!("{why}");
 			}
 		} else {
@@ -80,7 +80,7 @@ pub fn execute(l: LuaState, params: &mut DispatchParams, do_run: &mut bool) {
 		}
 
 		if let Ok(script) = afs::read_to_string(HOOK_PATH) {
-			match lua::run_env(l, &script, HOOK_PATH, &env) {
+			match lua::run_env(l, script, HOOK_PATH, &env) {
 				Ok(top) => {
 					// If you return ``true`` in your hook.lua file, then don't run the Autorun.CODE that is about to run.
 					match lua_type(l, top + 1) {

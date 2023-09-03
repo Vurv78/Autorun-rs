@@ -1,13 +1,16 @@
-use std::{sync::atomic::{AtomicPtr, Ordering}, mem::MaybeUninit};
-use winapi::um::{
-	wincon::GetConsoleWindow,
-	winuser::{ShowWindow, SW_HIDE, SW_SHOW, TranslateMessage, GetMessageA, DispatchMessageA},
+use std::{
+	mem::MaybeUninit,
+	sync::atomic::{AtomicPtr, Ordering},
 };
 use trayicon::*;
+use winapi::um::{
+	wincon::GetConsoleWindow,
+	winuser::{DispatchMessageA, GetMessageA, ShowWindow, TranslateMessage, SW_HIDE, SW_SHOW},
+};
 
 #[derive(Copy, Clone, Eq, PartialEq, Debug)]
 enum Events {
-	Exit
+	Exit,
 }
 
 pub fn replace_window() -> Result<(), trayicon::Error> {
@@ -22,10 +25,7 @@ pub fn replace_window() -> Result<(), trayicon::Error> {
 		.sender(send)
 		.icon_from_buffer(icon)
 		.tooltip("Open Autorun 🏃")
-		.menu(
-			MenuBuilder::new()
-				.item("Open Console", Events::Exit),
-		)
+		.menu(MenuBuilder::new().item("Open Console", Events::Exit))
 		.build()?;
 
 	let (send2, recv2) = std::sync::mpsc::channel::<bool>();

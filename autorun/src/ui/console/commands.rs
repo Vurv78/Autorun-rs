@@ -338,23 +338,57 @@ pub fn list<'a>() -> HashMap<&'a str, Command<'a>> {
 						}
 					}
 
+					"remove" => {
+						if let Some(plugin_name) = args.next() {
+							use crate::fs as afs;
+
+							let path = afs::FSPath::from(afs::PLUGIN_DIR).join(plugin_name);
+
+							if plugin_name.trim().is_empty() {
+								printerror!(normal, "Plugin name cannot be empty");
+							} else if path.extension().is_some() {
+								printerror!(
+									normal,
+									"Malformed plugin name (did not expect file extension)"
+								);
+							} else if !path.exists() {
+								printerror!(
+									normal,
+									"Impossible to delete plugin {}, path doesn't exist",
+									formatcol!(YELLOW, "{}", plugin_name)
+								);
+							} else {
+								afs::remove_dir(&path)?;
+							}
+						} else {
+							printcol!(
+								CYAN,
+								"Usage: {} {}",
+								formatcol!(YELLOW, "plugin remove"),
+								formatcol!(BRIGHT_GREEN, "<plugin_name>")
+							);
+						}
+					}
+
 					other => {
 						if other.trim().is_empty() {
 							printcol!(
 								CYAN,
-								"Subcommands: [{}, {}, {}]",
+								"Subcommands: [{}, {}, {}, {}]",
 								formatcol!(BRIGHT_GREEN, "help"),
 								formatcol!(BRIGHT_GREEN, "list"),
-								formatcol!(BRIGHT_GREEN, "new")
+								formatcol!(BRIGHT_GREEN, "new"),
+								formatcol!(BRIGHT_GREEN, "remove")
 							);
 						} else {
 							printcol!(
 								CYAN,
-								"Unknown subcommand: {} (Should be {}, {} or {})",
+								"Unknown subcommand: {} (Should be {}, {}, {} or {})",
 								formatcol!(BRIGHT_GREEN, "{}", subcommand),
 								formatcol!(BRIGHT_GREEN, "help"),
 								formatcol!(BRIGHT_GREEN, "list"),
-								formatcol!(BRIGHT_GREEN, "new")
+								formatcol!(BRIGHT_GREEN, "new"),
+								formatcol!(BRIGHT_GREEN, "remove")
 							);
 						}
 					}

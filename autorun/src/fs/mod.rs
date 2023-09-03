@@ -64,3 +64,7 @@ pub fn create_dir(path: &FSPath) -> std::io::Result<()> {
 pub fn create_file(path: &FSPath) -> std::io::Result<fs::File> {
 	fs::File::create(in_autorun(path))
 }
+
+pub fn remove_dir(path: &FSPath) -> std::io::Result<()> {
+	fs::remove_dir_all(in_autorun(path))
+}

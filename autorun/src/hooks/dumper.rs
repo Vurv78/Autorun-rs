@@ -23,6 +23,11 @@ fn fix_path(str: &str) -> Option<String> {
 	let mut buf = String::new();
 
 	let mut dots = 0;
+
+	if str.is_empty() {
+		return Some("unknown".to_string())
+	}
+
 	for char in str.chars() {
 		match char {
 			':' | '*' | '?' | '"' | '<' | '>' | '|' => {
@@ -48,10 +53,10 @@ fn fix_path(str: &str) -> Option<String> {
 			_ => {
 				dots = 0;
 				buf.push(char)
+				}
 			}
 		}
-	}
-
+	
 	Some(buf)
 }
 

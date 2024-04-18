@@ -24,7 +24,9 @@ fn fix_path(str: &str) -> Option<String> {
 
 	let mut dots = 0;
 
-	if !str.is_empty() {
+	if str.is_empty() {
+		return Some("unknown".to_string())
+	}
 
 	for char in str.chars() {
 		match char {
@@ -54,10 +56,7 @@ fn fix_path(str: &str) -> Option<String> {
 				}
 			}
 		}
-	}
-	else {
-		buf.push_str("unknown")
-	}
+	
 	Some(buf)
 }
 

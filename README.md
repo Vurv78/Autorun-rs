@@ -3,11 +3,11 @@
 
 # ⚠️ Warning
 
-This repository hasn't been updated in years, and as of recently there may be exploits against Autorun (by sore losers)
+**If you are on 1.2.0 upgrade to [`1.2.5`](https://github.com/Vurv78/Autorun-rs/releases/tag/v1.2.5) ASAP**
 
-Run it at your own risk. I sadly cannot vouch for the quality of it anymore since I'm unable to even use it, as a Linux user (I used windows back when it was made.)
+Some sore losers have been exploiting an issue that was fixed in 1.2.4 and the fix is now in 1.2.5
 
-> Garrysmod Lua Dumper & Runner, written in Rust.  
+It would allow people to create lua files in locations outside of the Autorun directory, potentially filling your drive with garbage data.
 
 ## Features
 * Dumping all lua scripts to ``C:\Users\<User>\autorun\lua_dumps\<ServerIP>\..`` (asynchronously to avoid i/o lag)

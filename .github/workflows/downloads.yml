@@ -14,7 +14,7 @@ jobs:
   upload64:
     runs-on: windows-latest
     steps:
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@v4
     - name: Build DLL
       run: |
         rustup default nightly
@@ -24,7 +24,7 @@ jobs:
         move target/release/autorun.dll gmsv_autorun_win64.dll
 
     - name: Upload DLL
-      uses: actions/upload-artifact@v2
+      uses: actions/upload-artifact@v4
       with:
         name: Windows 64 Bit
         path: gmsv_autorun_win64.dll
@@ -33,7 +33,7 @@ jobs:
   upload86:
     runs-on: windows-latest
     steps:
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@v4
     - name: Build DLL
       run: |
         rustup default nightly
@@ -44,7 +44,7 @@ jobs:
         move target/i686-pc-windows-msvc/release/autorun.dll gmsv_autorun_win32.dll
 
     - name: Upload DLL
-      uses: actions/upload-artifact@v2
+      uses: actions/upload-artifact@v4
       with:
         name: Windows 32 Bit
         path: gmsv_autorun_win32.dll
@@ -52,7 +52,7 @@ jobs:
   upload64_ubuntu:
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@v4
     - name: Build DLL
       run: |
         cd autorun
@@ -61,7 +61,7 @@ jobs:
         mv target/release/libautorun.so gmsv_autorun_linux64.dll
 
     - name: Upload DLL
-      uses: actions/upload-artifact@v2
+      uses: actions/upload-artifact@v4
       with:
         name: Linux 64 Bit
         path: gmsv_autorun_linux64.dll
@@ -69,7 +69,7 @@ jobs:
   upload86_ubuntu:
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@v4
     - name: Build DLL
       run: |
         sudo apt-get update && sudo apt-get install gcc-multilib
@@ -80,7 +80,7 @@ jobs:
         mv target/i686-unknown-linux-gnu/release/libautorun.so gmsv_autorun_linux32.dll
 
     - name: Upload DLL
-      uses: actions/upload-artifact@v2
+      uses: actions/upload-artifact@v4
       with:
         name: Linux 32 Bit
         path: gmsv_autorun_linux32.dll

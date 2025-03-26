@@ -1,6 +1,12 @@
 [![Autorun](assets/logo.png)](https://github.com/Vurv78/Autorun-rs)
 # [![Release Shield](https://img.shields.io/github/v/release/Vurv78/Autorun-rs)](https://github.com/Vurv78/Autorun-rs/releases/latest) [![License](https://img.shields.io/github/license/Vurv78/Autorun-rs?color=red)](https://opensource.org/licenses/Apache-2.0) [![CI](https://github.com/Vurv78/Autorun-rs/workflows/Download/badge.svg)](https://github.com/Vurv78/Autorun-rs/actions/workflows/downloads.yml) [![github/Vurv78](https://img.shields.io/discord/824727565948157963?label=Discord&logo=discord&logoColor=ffffff&labelColor=7289DA&color=2c2f33)](https://discord.gg/yXKMt2XUXm)
 
+# ⚠️ Warning
+
+This repository hasn't been updated in years, and as of recently there may be exploits against Autorun (by sore losers)
+
+Run it at your own risk. I sadly cannot vouch for the quality of it anymore since I'm unable to even use it, as a Linux user (I used windows back when it was made.)
+
 > Garrysmod Lua Dumper & Runner, written in Rust.  
 
 ## Features

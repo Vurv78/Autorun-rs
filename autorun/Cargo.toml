@@ -1,6 +1,6 @@
 [package]
 name = "autorun"
-version = "1.2.4"
+version = "1.2.5"
 authors = ["Vurv78 <Vurv78@users.noreply.github.com>"]
 edition = "2021"
 repository = "https://github.com/Vurv78/Autorun-rs"
@@ -20,7 +20,7 @@ http = ["tinyget"] # To check for updates and download plugins in the future.
 
 [dependencies]
 autorun-shared = { path = "../autorun-shared" }
-rglua = { version = "3.0.0-beta2" }
+rglua = { version = "3.0.0" }
 
 lupat = { git = "https://github.com/Vurv78/lupat" }
 detour = { version = "0.8", default-features = false }

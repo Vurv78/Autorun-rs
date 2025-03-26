@@ -17,7 +17,7 @@ enabled = true
 
 [filesteal]
 # Whether to save lua files from detours in autorun/lua_dumps
-enabled = true
+enabled = false
 
 # Format to use when saving folders
 # Valid tags:
